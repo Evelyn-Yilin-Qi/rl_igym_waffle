@@ -33,7 +33,5 @@ venv/
 .DS_Store
 Thumbs.db
 
-# 6. OmniIsaacGymEnvs 内部产生的编译/缓存文件
-OmniIsaacGymEnvs/build/
-OmniIsaacGymEnvs/dist/
-OmniIsaacGymEnvs/*.egg-info/
+# 6. 彻底忽略官方框架，组员需自行 clone
+OmniIsaacGymEnvs/
