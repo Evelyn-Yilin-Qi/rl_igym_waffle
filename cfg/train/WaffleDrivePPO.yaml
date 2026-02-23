@@ -19,4 +19,4 @@ agent:
 trainer:
   stage1_epochs: 50        # 第一阶段纯净训练轮次
   stage2_epochs: 300       # 第二阶段进阶避障轮次
-  headless: False           # 开启无头模式，榨干算力
+  headless: True           # True为无可视化窗口模式，False有可视化窗口
