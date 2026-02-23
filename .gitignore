@@ -1,0 +1,39 @@
+# ==========================================
+# 项目专属 .gitignore
+# ==========================================
+
+# 1. 强化学习训练产物 (绝对不能上传，会撑爆仓库！)
+runs/
+outputs/
+*.pt
+*.pth
+*.onnx
+
+# 2. 系统崩溃与内存转储文件 (你截图里的 core.1970 等)
+core.*
+*.log
+crash_reports/
+
+# 3. Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+
+# 4. IDE 与编辑器配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 5. 系统级垃圾文件
+.DS_Store
+Thumbs.db
+
+# 6. OmniIsaacGymEnvs 内部产生的编译/缓存文件
+OmniIsaacGymEnvs/build/
+OmniIsaacGymEnvs/dist/
+OmniIsaacGymEnvs/*.egg-info/

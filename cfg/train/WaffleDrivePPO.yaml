@@ -1,0 +1,22 @@
+# ==================================
+# skrl PPO 核心算法配置 (严格对齐论文)
+# ==================================
+agent:
+  rollouts: 8            # 对齐论文 Horizon Length (同时作为 Memory Size)
+  learning_epochs: 4       # 对齐论文 Mini Epochs
+  mini_batches: 4          # 128*128 / 4 = 4096 Batch Size
+  learning_rate: 0.0005    # 对齐论文 5e-4
+  entropy_loss_scale: 0.01 # 对齐论文 1e-2
+  value_loss_scale: 0.2    # 压制 Critic
+  ratio_clip: 0.2          # 对齐论文 eps_clip
+  discount_factor: 0.99
+  state_preprocessor: null # OIGE 环境内部已完成归一化，skrl 无需再处理
+  value_preprocessor: null
+
+# ==================================
+# 训练引擎控制配置
+# ==================================
+trainer:
+  stage1_epochs: 50        # 第一阶段纯净训练轮次
+  stage2_epochs: 300       # 第二阶段进阶避障轮次
+  headless: False           # 开启无头模式，榨干算力

@@ -1,0 +1,55 @@
+# ==================================
+# 环境超参数
+# ==================================
+# WaffleDrive 张量化环境物理配置 (严格对齐 SymbioDrive 论文)
+name: WaffleDrive
+physics_engine: physx
+env:
+  numEnvs: 4
+  envSpacing: 4.0 
+  resetDist: 0.2 
+  maxEpisodeLength: 500 
+  clipObservations: 5.0 
+  clipActions: 1.0
+  controlFrequencyInv: 1 # 控制间隔，配合 dt=0.025，实现精确 40Hz 控制
+
+  # Waffle Pi 真实物理极限 (用于动作重映射)
+  robot_limits:
+    max_v: 0.26 # 线速度上限 m/s
+    max_w: 1.82 # 角速度上限 rad/s
+
+  target:
+    pos: [3.0, 0.0, 0.0] 
+
+  lidar:
+    num_rays: 36
+    max_range: 3.5 
+    noise_std: 0.02 # 注入高斯噪声的标准差，极大增强 Sim-to-Real 鲁棒性
+
+  randomization:
+    stage_level: 1 # 【开关】1: 无障碍纯净模式, 2: 动态门缝与障碍模式
+    door_width_range: [0.9, 1.7]
+    box_scale_range: [0.5, 1.2]
+
+  # Waffle Pi 专属安全边界 (米)
+  safety:
+    d_col: 0.22  # 绝对碰撞半径 (底盘大小)
+    d_crit: 0.40 # 危险临界区半径 (提前预警)
+
+  # 奖励函数权重配置 (严格执行定制化魔改共识)
+  rewards:
+    v_tracking_weight: 0.5         # 意图追踪
+    heading_penalty_weight: -0.5   # 转向逼迫 (无死区，全局连续惩罚)
+    centripetal_accel_weight: -0.2 # 【高阶舒适度】向心加速度惩罚 |v_x * w|
+    action_smooth_weight: -0.01    # 【高阶舒适度】平滑惩罚
+    collision_penalty: -100.0      # 基础安全：碰撞极恐惩罚
+    critical_penalty: -10.0        # 基础安全：贴墙危险区预警惩罚
+
+sim:
+  dt: 0.025 # 物理步长 40Hz
+  use_gpu_pipeline: True
+  gravity: [0.0, 0.0, -9.81]
+  physx:
+    num_threads: 4
+    solver_type: 1
+    use_gpu: True

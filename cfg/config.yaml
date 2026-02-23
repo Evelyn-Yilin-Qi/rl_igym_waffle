@@ -1,0 +1,3 @@
+defaults:
+  - task: WaffleDrive
+  - train: WaffleDrivePPO
