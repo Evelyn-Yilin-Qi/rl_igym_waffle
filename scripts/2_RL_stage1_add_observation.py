@@ -3,12 +3,19 @@ RL Stage 1 测试脚本 - 带观察模块
 4个empty场景，每个TB3机器人朝随机目标行走，独立reset
 加入观察模块，保持40Hz观察频率，每隔1秒输出env0的观察
 """
+import os
+import sys
 import time
 import numpy as np
 import torch
 from omegaconf import OmegaConf
 
 from omni.isaac.kit import SimulationApp
+
+# Ensure project root is on PYTHONPATH so that local modules (e.g., sim) can be imported
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # 初始化 Isaac Sim
 simulation_app = SimulationApp({"headless": False})
@@ -39,7 +46,27 @@ from envs.user_intent import compute_user_intent_torch
 
 def load_config(cfg_path="cfg/task/WaffleDrive.yaml"):
     """从配置文件加载参数"""
-    cfg = OmegaConf.load(cfg_path)
+    # 将相对路径解析为项目根目录下的路径；若未找到则尝试常见位置
+    candidates = []
+    if os.path.isabs(cfg_path):
+        candidates.append(cfg_path)
+    else:
+        candidates.extend([
+            os.path.join(PROJECT_ROOT, cfg_path),      # 项目根目录
+            os.path.abspath(cfg_path),                 # 运行时工作目录
+            os.path.join(os.getcwd(), cfg_path),       # 显式拼当前工作目录
+        ])
+
+    found = None
+    for path in candidates:
+        if os.path.exists(path):
+            found = os.path.abspath(path)
+            break
+
+    if found is None:
+        raise FileNotFoundError(f"Config file not found. Tried: {candidates}")
+
+    cfg = OmegaConf.load(found)
     return cfg
 
 
