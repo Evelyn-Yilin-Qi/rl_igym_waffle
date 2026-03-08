@@ -14,8 +14,8 @@ def convert_to_ego_frame(dir_vec_env, yaw):
     dir_vec_env = dir_vec_env.float()
     yaw = yaw.float()
     
-    cos_yaw = torch.cos(yaw)
-    sin_yaw = torch.sin(yaw)
+    cos_yaw = torch.cos(yaw).cuda()
+    sin_yaw = torch.sin(yaw).cuda()
     
     # 打印关键中间值（调试用）
     # print(f"  旋转参数 - cos(θ): {cos_yaw.item():.6f}, sin(θ): {sin_yaw.item():.6f}")

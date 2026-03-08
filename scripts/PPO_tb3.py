@@ -228,7 +228,7 @@ class PPO:
         self.clip_eps = clip_eps  # 裁剪系数
         self.k_epochs = k_epochs  # 每次更新迭代次数
         self.batch_size = batch_size  # 批次大小
-        self.entropy_coef = 0.0001
+        self.entropy_coef = 0.01
         
         # 经验缓存
         self.buffer = {
@@ -565,7 +565,7 @@ def compute_total_reward(dist, yaw_err, v_cmd, collision, reached, timeout,
     total_reward = np.zeros(n, dtype=np.float32)
 
     # 距离奖励
-    dist_reward = -dist * 0.5  # 距离越小，奖励越高
+    dist_reward = -dist * 1.0  # 距离越小，奖励越高
     # 目标奖励/超时惩罚（数组索引赋值）
     goal_reward = np.zeros(n, dtype=np.float32)
     goal_reward[reached] = 10.0
@@ -983,7 +983,7 @@ def main():
                 log_prob = 0.0
             else:
                 # PPO选择动作（归一化的[-1,1]）
-                if step_count % 1 == 0:
+                if step_count % 10 == 0:
                     act, log_prob = ppo.select_action(obs[i])
             
             log_probs[i] = log_prob
