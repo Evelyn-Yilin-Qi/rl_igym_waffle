@@ -167,13 +167,30 @@ def pretrain_actor_to_simple_control(
         if epoch % 10 == 0:
             print(f"预训练Epoch {epoch:2d} | 损失值: {loss.item():.6f}")
 
-# ==================== PPO核心网络定义 ====================
+# ==================== PPO核心网络定义（拆分输入分支版） ====================
 class Actor(nn.Module):
-    """PPO策略网络（输出动作分布的均值和标准差）"""
-    def __init__(self, obs_dim, act_dim, hidden_dim=64):
+    """PPO策略网络（拆分输入分支：LiDAR+状态特征）"""
+    def __init__(self, lidar_dim=36, state_dim=6, act_dim=2, hidden_dim=128):
         super(Actor, self).__init__()
-        self.fc1 = nn.Linear(obs_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        
+        # LiDAR特征提取分支（36维输入）
+        self.lidar_branch = nn.Sequential(
+            nn.Linear(lidar_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim//2),
+            nn.Tanh()
+        )
+        
+        # 状态特征分支（6维：UserIntent(2)+BaseVel(2)+ActionHistory(2)）
+        self.state_branch = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim//2),
+            nn.Tanh(),
+            nn.Linear(hidden_dim//2, hidden_dim//2),
+            nn.Tanh()
+        )
+        
+        # 合并特征后输出动作分布
+        self.fc_merge = nn.Linear(hidden_dim//2 + hidden_dim//2, hidden_dim)
         self.mean_layer = nn.Linear(hidden_dim, act_dim)
         self.log_std_layer = nn.Linear(hidden_dim, act_dim)
         
@@ -182,33 +199,74 @@ class Actor(nn.Module):
         self.log_std_max = 2
 
     def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        mean = self.mean_layer(x)
-        log_std = self.log_std_layer(x)
+        # 拆分输入：前36维是LiDAR，后6维是状态特征
+        lidar_feat = x[:, :36]    # (batch, 36)
+        state_feat = x[:, 36:]    # (batch, 6)
+        
+        # 分支特征提取
+        lidar_out = self.lidar_branch(lidar_feat)  # (batch, 32)
+        state_out = self.state_branch(state_feat)  # (batch, 32)
+        
+        # 合并特征
+        merge_feat = torch.cat([lidar_out, state_out], dim=1)  # (batch, 64)
+        merge_feat = torch.tanh(self.fc_merge(merge_feat))     # (batch, 64)
+        
+        # 输出动作分布
+        mean = self.mean_layer(merge_feat)
+        log_std = self.log_std_layer(merge_feat)
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
+        
         return mean, log_std
 
 class Critic(nn.Module):
-    """PPO价值网络（输出状态价值）"""
-    def __init__(self, obs_dim, hidden_dim=64):
+    """PPO价值网络（拆分输入分支：LiDAR+状态特征）"""
+    def __init__(self, lidar_dim=36, state_dim=6, hidden_dim=128):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(obs_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        
+        # LiDAR特征提取分支
+        self.lidar_branch = nn.Sequential(
+            nn.Linear(lidar_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim//2),
+            nn.Tanh()
+        )
+        
+        # 状态特征分支
+        self.state_branch = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim//2),
+            nn.Tanh(),
+            nn.Linear(hidden_dim//2, hidden_dim//2),
+            nn.Tanh()
+        )
+        
+        # 合并特征后输出状态价值
+        self.fc_merge = nn.Linear(hidden_dim//2 + hidden_dim//2, hidden_dim)
         self.value_layer = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        value = self.value_layer(x)
+        # 拆分输入
+        lidar_feat = x[:, :36]
+        state_feat = x[:, 36:]
+        
+        # 分支特征提取
+        lidar_out = self.lidar_branch(lidar_feat)
+        state_out = self.state_branch(state_feat)
+        
+        # 合并特征
+        merge_feat = torch.cat([lidar_out, state_out], dim=1)
+        merge_feat = torch.tanh(self.fc_merge(merge_feat))
+        
+        # 输出状态价值
+        value = self.value_layer(merge_feat)
         return value
 
 class PPO:
-    """PPO算法核心类"""
+    """PPO算法核心类（适配分支网络）"""
     def __init__(
         self,
-        obs_dim,
-        act_dim,
+        lidar_dim=36,
+        state_dim=6,
+        act_dim=2,
         lr=3e-4,
         gamma=0.99,
         lamda=0.95,
@@ -216,13 +274,13 @@ class PPO:
         k_epochs=3,
         batch_size=64
     ):
-        # 网络初始化并移到指定设备
-        self.actor = Actor(obs_dim, act_dim).to(device)
-        self.critic = Critic(obs_dim).to(device)
+        # 网络初始化并移到指定设备（使用分支网络）
+        self.actor = Actor(lidar_dim=lidar_dim, state_dim=state_dim, act_dim=act_dim).to(device)
+        self.critic = Critic(lidar_dim=lidar_dim, state_dim=state_dim).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
         
-        # 超参数
+        # 超参数（保持不变）
         self.gamma = gamma  # 折扣因子
         self.lamda = lamda  # GAE系数
         self.clip_eps = clip_eps  # 裁剪系数
@@ -230,12 +288,13 @@ class PPO:
         self.batch_size = batch_size  # 批次大小
         self.entropy_coef = 0.01
         
-        # 经验缓存
+        # 经验缓存（保持不变）
         self.buffer = {
             "obs": [], "acts": [], "rews": [], 
             "next_obs": [], "dones": [], "log_probs": []
         }
 
+    # 以下方法（select_action/store_transition/compute_gae/update）完全复用原有逻辑，无需修改
     def select_action(self, obs):
         """根据观察选择动作（带探索）"""
         # 将观察数据移到指定设备
@@ -603,8 +662,9 @@ def compute_total_reward(dist, yaw_err, v_cmd, collision, reached, timeout,
     # 3. 航向惩罚（仅对非碰撞环境计算）
     heading_pen = np.zeros(n, dtype=np.float32)
     if np.any(non_collision_mask):
-        phi_thresh = np.pi/12  # 15°阈值
-        rh = -0.8
+        phi_thresh = 0  
+        rh = -2.8
+        rl = -1
         
         # 筛选非碰撞环境的航向误差
         yaw_err_non_collision = yaw_err[non_collision_mask]
@@ -612,7 +672,7 @@ def compute_total_reward(dist, yaw_err, v_cmd, collision, reached, timeout,
         # 仅当|Φ| > Φthresh时施加惩罚
         heading_mask = abs_err > phi_thresh
         heading_pen_non_collision = np.zeros_like(yaw_err_non_collision)
-        heading_pen_non_collision[heading_mask] = rh * (abs_err[heading_mask] ** 2)
+        heading_pen_non_collision[heading_mask] = rh * (abs_err[heading_mask] ** 2) + rl * abs_err[heading_mask]
         # 赋值回总惩罚数组
         heading_pen[non_collision_mask] = heading_pen_non_collision
     
@@ -754,7 +814,7 @@ def main():
     DCRIT = 0.5  # 临界阈值（50cm）
     
     # 随机数初始化
-    seed = 1
+    seed = 0
     rng = np.random.default_rng(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -875,13 +935,14 @@ def main():
     obs_dim = 36 + 2 + 2 + 2  # LiDAR(36) + UserIntent(2) + BaseVel(2) + ActionHistory(2)
     act_dim = 2  # 线速度v、角速度w（归一化到[-1,1]）
     ppo = PPO(
-        obs_dim=obs_dim,
+        lidar_dim=36,          # LiDAR分支维度
+        state_dim=6,           # 状态特征分支维度（2+2+2）
         act_dim=act_dim,
         lr=3e-4,
         gamma=0.98,
         lamda=0.90,
         clip_eps=0.2,
-        k_epochs=1,
+        k_epochs=3,
         batch_size=64
     )
 
@@ -1004,7 +1065,16 @@ def main():
                     temp_cur_act[i] = act
                     temp_logprob[i] = log_prob
                 else:
-                    act, log_prob = temp_cur_act[i], temp_logprob[i]
+                # 持续控制
+                    act = temp_cur_act[i]
+                    obs_cur = torch.FloatTensor(obs[i]).unsqueeze(0).to(device)
+                    mean, log_std = ppo.actor(obs_cur)
+                    std = log_std.exp()
+                    dist = Normal(mean, std)
+                    log_prob = dist.log_prob(
+torch.tensor(act).unsqueeze(0).to(device)).sum().detach().cpu().numpy()
+                    
+
             
             log_probs[i] = log_prob
             current_act[i] = act
