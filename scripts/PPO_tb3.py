@@ -54,7 +54,7 @@ from sim.robot import (
     apply_massapi_all_tb3, configure_wheel_joints
 )
 from sim.scenes import (
-    SCENE_EMPTY,
+    SCENE_EMPTY, SCENE_BOX,
     SceneManager, yaw_from_quat_wxyz, quat_wxyz_from_yaw, wrap_to_pi
 )
 from envs.observations import assemble_observations, get_base_velocity_from_tensor
@@ -444,26 +444,31 @@ def check_obstacle_collision(lidar_ranges, dcol=0.2, dcrit=0.5):
     检查障碍物碰撞（胶囊形模型）
     Args:
         lidar_ranges: (num_envs, lidar_num_rays) LiDAR测距数据
-        dcol: 碰撞阈值（m）
-        dcrit: 临界阈值（m），dcrit > dcol
+        dcol: 碰撞阈值（m），d < dcol 表示已发生碰撞
+        dcrit: 临界阈值（m），dcol < dcrit，d < dcrit 表示有碰撞风险
     Returns:
-        collision_flag: (num_envs,) 是否碰撞（d < dcrit）
-        min_dist: (num_envs,) 最近障碍物距离
+        collision_flag: (num_envs,) 是否已碰撞（d < dcol）
+        critical_flag: (num_envs,) 是否有碰撞风险（d < dcrit）
+        min_dist: (num_envs,) 最近障碍物距离（胶囊形模型修正后）
     """
     num_envs = lidar_ranges.shape[0]
+    # 初始化标志
     collision_flag = np.zeros(num_envs, dtype=bool)
-    min_dist = np.min(lidar_ranges, axis=1)  # 每个环境的最近障碍物距离
+    critical_flag = np.zeros(num_envs, dtype=bool)
     
-    # 胶囊形模型修正：沿前进方向扩展碰撞检测范围
-    # 轮椅长度方向（前进）的安全距离修正
-    forward_rays = lidar_ranges[:, :int(lidar_ranges.shape[1]/4)]  # 前90° LiDAR射线
+    # 计算全局最近距离
+    min_dist = np.min(lidar_ranges, axis=1)  
+    
+    # 胶囊形模型修正：前进方向距离修正
+    forward_rays = lidar_ranges[:, :int(lidar_ranges.shape[1]/4)]  # 前90°射线
     forward_min_dist = np.min(forward_rays, axis=1)
-    min_dist = np.minimum(min_dist, forward_min_dist * 1.2)  # 胶囊形长度修正
+    min_dist = np.minimum(min_dist, forward_min_dist * 1.2)  # 长度修正
     
-    # 判定碰撞
-    collision_flag = min_dist < dcrit
+    # 正确区分：dcol=碰撞，dcrit=临界风险
+    collision_flag = min_dist < dcol       # 真正碰撞（距离极近）
+    critical_flag = min_dist < dcrit       # 临界风险（需要减速/避障）
     
-    return collision_flag, min_dist
+    return collision_flag, critical_flag, min_dist
 
 def compute_obstacle_penalty(min_dist, dcol=0.2, dcrit=0.5, rc=-0.5, rcrit=-2.0):
     """
@@ -599,7 +604,7 @@ def compute_total_reward(dist, yaw_err, v_cmd, collision, reached, timeout,
     heading_pen = np.zeros(n, dtype=np.float32)
     if np.any(non_collision_mask):
         phi_thresh = np.pi/12  # 15°阈值
-        rh = -0.2
+        rh = -0.8
         
         # 筛选非碰撞环境的航向误差
         yaw_err_non_collision = yaw_err[non_collision_mask]
@@ -749,7 +754,7 @@ def main():
     DCRIT = 0.5  # 临界阈值（50cm）
     
     # 随机数初始化
-    seed = 0
+    seed = 1
     rng = np.random.default_rng(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -873,13 +878,18 @@ def main():
         obs_dim=obs_dim,
         act_dim=act_dim,
         lr=3e-4,
-        gamma=0.95,
+        gamma=0.98,
         lamda=0.90,
         clip_eps=0.2,
-        k_epochs=3,
+        k_epochs=1,
         batch_size=64
     )
 
+    for _ in range(8):
+        robots.set_joint_velocity_targets(np.zeros((num_envs, robots.num_dof), dtype=np.float32))
+        robots.set_velocities(np.zeros((num_envs, 6), dtype=np.float32))
+        robots.set_joint_velocities(np.zeros((num_envs, robots.num_dof), dtype=np.float32))
+        world.step(render=True)
     
     # 训练参数
     update_freq = 64  # 每64步更新一次策略
@@ -890,6 +900,9 @@ def main():
     current_time = 0.0
     last_obs_print = time.time()
     last_debug_print = time.time()
+
+    temp_cur_act = np.zeros((num_envs, 2), dtype=np.float32)
+    temp_logprob = np.zeros((num_envs,), dtype=np.float32)
     
     while simulation_app.is_running():
         current_time += physics_dt
@@ -968,13 +981,16 @@ def main():
         )
         
         # ==================== 障碍物碰撞检测 ====================
-        obstacle_collision, min_dist = check_obstacle_collision(lidar_ranges, DCOL, DCRIT)
+        obstacle_collision, critical_flag, min_dist = check_obstacle_collision(lidar_ranges, DCOL, DCRIT)
         
         # ==================== PPO动作选择 ====================
         v_cmd = np.zeros(num_envs, dtype=np.float32)
         w_cmd = np.zeros(num_envs, dtype=np.float32)
         log_probs = np.zeros(num_envs, dtype=np.float32)
         current_act = np.zeros((num_envs, 2), dtype=np.float32)  # 归一化动作
+
+
+
         
         for i in range(num_envs):
             # 碰撞时强制停止
@@ -985,6 +1001,10 @@ def main():
                 # PPO选择动作（归一化的[-1,1]）
                 if step_count % 10 == 0:
                     act, log_prob = ppo.select_action(obs[i])
+                    temp_cur_act[i] = act
+                    temp_logprob[i] = log_prob
+                else:
+                    act, log_prob = temp_cur_act[i], temp_logprob[i]
             
             log_probs[i] = log_prob
             current_act[i] = act
