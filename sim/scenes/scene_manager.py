@@ -181,6 +181,8 @@ class SceneManager:
                 h = 0.6
                 handles["box"]["s_op"].Set(Gf.Vec3d(float(l), float(b), float(h)))
                 handles["box"]["t_op"].Set(Gf.Vec3d(float(env_origin[0]), float(env_origin[1]), h * 0.5))
+                # 确保BOX可见
+                self._set_visibility(handles["box"]["prim"], True)
             
             elif scene_type == SCENE_CYLINDER:
                 h = 0.7
@@ -191,6 +193,8 @@ class SceneManager:
                     c["geom"].CreateRadiusAttr(float(rad))
                     c["geom"].CreateHeightAttr(float(h))
                     c["t_op"].Set(Gf.Vec3d(float(env_origin[0] + ox), float(env_origin[1] + oy), h * 0.5))
+                    # 确保圆柱体可见
+                    self._set_visibility(c["prim"], True)
             
             elif scene_type == SCENE_DOOR:
                 door_w = rng.uniform(0.9, 1.75)
@@ -221,6 +225,11 @@ class SceneManager:
                 handles["door_right"]["t_op"].Set(
                     Gf.Vec3d(float(env_origin[0]), float(env_origin[1] + lower_center_local_y), wall_h * 0.5)
                 )
+                # 确保门的两段墙可见
+                self._set_visibility(handles["door_left"]["prim"], True)
+                self._set_visibility(handles["door_right"]["prim"], True)
+            
+            # EMPTY场景：确保所有障碍物都隐藏（已经在上面隐藏了）
     
     def get_robot_spawn_config(self, env_id, rng=None):
         """

@@ -1,0 +1,11 @@
+networks:
+  components:
+    - name: "essay_base"  # 论文基础架构：1D Conv + LSTM
+      enabled: true
+      params:
+        # essay_base 架构不需要额外参数（所有维度都是固定的）
+    
+    - name: "simple_fc"  # 简单全连接架构：分离的LiDAR和状态分支
+      enabled: false
+      params:
+        hidden_dim: 128  # 隐藏层维度

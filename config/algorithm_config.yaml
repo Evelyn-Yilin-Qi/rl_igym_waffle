@@ -1,0 +1,19 @@
+algorithms:
+  components:
+    - name: "ppo"  # Proximal Policy Optimization
+      enabled: true
+      params:
+        lr: 3e-4
+        gamma: 0.98
+        lamda: 0.90
+        clip_eps: 0.2
+        k_epochs: 3
+        batch_size: 64
+        entropy_coef: 0.01
+    
+    # 预留其他算法接口
+    # - name: "sac"  # Soft Actor-Critic
+    #   enabled: false
+    #   params:
+    #     lr: 3e-4
+    #     ...
