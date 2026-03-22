@@ -1,3 +1,11 @@
+# =============================================================================
+# DEPRECATED (legacy compatibility only)
+# -----------------------------------------------------------------------------
+# This cfg/ folder is kept only for old scripts/tests compatibility.
+# New development MUST NOT add or read settings from cfg/*.
+# Please use runtime in-script parameters or config/* instead.
+# =============================================================================
+#
 # ==================================
 # 环境超参数
 # ==================================

@@ -14,8 +14,8 @@ rewards:
       params:
         dcol: 0.2
         dcrit: 0.5
-        rc: -1.0      # 临界距离惩罚（论文表格：SCLFC_D_R2）
-        rcrit: -1.0   # 临界阈值惩罚（论文表格：SCLFC_D_R2）
+        rc: -0.5      # 对齐 sft_rl_tb3.py
+        rcrit: -10.0  # 对齐 sft_rl_tb3.py
         rcol: -100.0  # 碰撞惩罚（论文表格：所有模型都是-100）
     
     - name: "heading"
@@ -42,3 +42,18 @@ rewards:
         penalty_type: "linear"  # 'linear', 'threshold', 'quadratic'
         scale: 1.0  # 惩罚系数
         threshold: 0.5  # 离心加速度阈值（m/s²），用于threshold和quadratic模式
+
+    # SFT版本可选奖励：默认关闭，仅做保留对照
+    - name: "distance_reward"
+      enabled: true
+      weight: 1.0
+      params:
+        scale: -1.0
+
+    - name: "goal_reward"
+      enabled: true
+      weight: 1.0
+      params:
+        reached_bonus: 10.0
+        timeout_base: -8.0
+        timeout_dist_scale: -1.0

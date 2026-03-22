@@ -40,6 +40,7 @@ from sim.scenes import (
     SCENE_EMPTY, SCENE_BOX, SCENE_CYLINDER, SCENE_DOOR,
     yaw_from_quat_wxyz, quat_wxyz_from_yaw, wrap_to_pi
 )
+from sim.robot import MAX_V, MAX_W
 from envs.observations import (
     assemble_observations, 
     get_base_velocity_from_tensor,
@@ -121,8 +122,8 @@ def load_checkpoint(rl_agent, checkpoint_path=None, checkpoint_dir=None):
     """
     if checkpoint_path is None:
         if checkpoint_dir is None:
-            # 默认查找stage1的checkpoint目录
-            checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_test_modular")
+            # 默认查找stage1_rl的checkpoint目录
+            checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_rl")
         checkpoint_path = find_latest_checkpoint(checkpoint_dir)
     
     if checkpoint_path is None or not os.path.exists(checkpoint_path):
@@ -156,24 +157,23 @@ def main(checkpoint_path=None):
         checkpoint_path: 可选的checkpoint文件路径。如果为None，则自动查找最新的stage1模型
     """
     # 加载配置（模块化配置）
-    env_cfg = load_config("cfg/WaffleDrive.yaml")  # 环境和物理配置
     network_cfg = load_config("config/network_config.yaml")  # 核心网络配置
     algo_cfg = load_config("config/algorithm_config.yaml")  # RL算法配置
     reward_cfg = load_config("config/reward_config.yaml")  # 奖励函数配置
     
     # 配置参数（从env_cfg读取）
     num_envs = 16  # Stage2：16个环境，每个场景各4个（EMPTY, CYLINDER, DOOR, BOX各4个）
-    reset_dist = float(env_cfg.env.resetDist)
+    reset_dist = 0.2
     TIMEOUT_SECONDS = 60.0
     
     # 物理和机器人参数
-    physics_dt = float(env_cfg.sim.dt)
-    max_v = float(env_cfg.env.robot_limits.max_v)
-    max_w = float(env_cfg.env.robot_limits.max_w)
+    physics_dt = 0.025
+    max_v = float(MAX_V)
+    max_w = float(MAX_W)
     
     # LiDAR参数
-    lidar_num_rays = int(env_cfg.env.lidar.num_rays)
-    lidar_max_range = float(env_cfg.env.lidar.max_range)
+    lidar_num_rays = 36
+    lidar_max_range = 3.0
     
     # 碰撞模型参数（轮椅胶囊形）
     DCOL = 0.2  # 碰撞阈值（20cm）
@@ -201,6 +201,7 @@ def main(checkpoint_path=None):
         print(f"{scene_type}: {count}个环境")
     
     # ==================== 使用 EnvironmentSetup 初始化环境 ====================
+    env_cfg = OmegaConf.create({"sim": {"dt": physics_dt}})
     env_setup = EnvironmentSetup(
         env_cfg=env_cfg,
         num_envs=num_envs,
@@ -274,7 +275,7 @@ def main(checkpoint_path=None):
     
     # 3. 加载checkpoint（如果存在）
     print(f"\n=== 模型加载 ===")
-    checkpoint_dir_stage1 = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_test_modular")
+    checkpoint_dir_stage1 = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_rl")
     checkpoint_loaded = load_checkpoint(rl_agent, checkpoint_path=checkpoint_path, checkpoint_dir=checkpoint_dir_stage1)
     if checkpoint_loaded:
         print("[信息] 从Stage1模型继续训练")
@@ -297,8 +298,8 @@ def main(checkpoint_path=None):
     total_epochs = 300           # Stage2：总共训练300轮（每轮一次ppo.update）
     save_every = 60             # 每60轮保存一次checkpoint
     update_count = 0            # 已完成的更新轮数
-    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage2_test_modular_v2")
-    writer = SummaryWriter(log_dir=os.path.join(PROJECT_ROOT, "runs", "ppo_stage2_test_modular_v2"))
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage2_rl")
+    writer = SummaryWriter(log_dir=os.path.join(PROJECT_ROOT, "runs", "ppo_stage2_rl"))
     reward_component_sums = {}
     reward_component_count = 0
     
@@ -364,16 +365,19 @@ def main(checkpoint_path=None):
         current_measured_v = robot_velocities_np[:, 0]
         current_measured_w = robot_velocities_np[:, 5]
         
-        # 4. 用户意图
+        # 4. 用户意图（自车坐标系）
+        # user_intent_ego: [ux, uy]
+        #   ux > 0 表示目标在车前方（forward +X）
+        #   uy > 0 表示目标在车左侧（left +Y）
         # 张量移到GPU
         robot_pos_torch = torch.from_numpy(pos).float().to(device)
         robot_rot_torch = torch.from_numpy(rot).float().to(device)
         goal_pos_torch = torch.from_numpy(goal_pos).float().to(device)
         env_origins_torch = torch.from_numpy(env_origins).float().to(device)
-        _, user_intent_env, _ = compute_user_intent_torch(
+        _, user_intent_ego, _ = compute_user_intent_torch(
             robot_pos_torch, torch.tensor(yaw), goal_pos_torch, env_origins_torch, normalize=True
         )
-        user_intent_np = user_intent_env.cpu().numpy().astype(np.float32)  # 转回CPU
+        user_intent_np = user_intent_ego.cpu().numpy().astype(np.float32)  # 转回CPU；obs[36:38] 使用该口径
         
         # 5. 组装观察向量
         obs = assemble_observations(

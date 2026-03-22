@@ -13,6 +13,10 @@ TB3_USD = os.path.join(_PROJECT_ROOT, "assets", "turtlebot3_waffle_pi", "waffle_
 WHEEL_RADIUS = 0.033  # 轮子半径 (m)
 WHEEL_BASE = 0.288    # 轮距 (m)，左右轮中心距离（根据 URDF: 0.144 - (-0.144) = 0.288）
 
+# 机器人控制上限（训练/归一化统一口径）
+MAX_V = 0.5  # 线速度上限 (m/s)
+MAX_W = 1.0  # 角速度上限 (rad/s)
+
 # 机器人质量参数
 BASE_MASS = 2.2       # 底盘质量 (kg)
 COM_X = -0.08         # 质心 X 偏移 (m)

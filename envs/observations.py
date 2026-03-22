@@ -1,7 +1,11 @@
 """
 Observation Space Assembly
 组装 44 维观察向量：LiDAR[36] + User Input[2] + Base Velocity[2] + Action History[4]
-Base Velocity 是测量的当前线速度和角速度 (v, w)
+
+User Input（obs[36:38]）的工程统一定义：
+- 来自 user_intent_ego（自车坐标系）
+- ux: 小车正前方为正方向（forward +X）
+- uy: 小车左侧90度为正方向（left +Y）
 """
 import numpy as np
 import torch
@@ -50,7 +54,8 @@ def assemble_observations(
     Returns:
         obs: (N, 44) 观察向量
             - [0:36]: LiDAR 归一化距离 [0, 1]
-            - [36:38]: User Input 单位向量 (ux, uy) ∈ [-1, 1], √(ux² + uy²) = 1
+            - [36:38]: User Input（user_intent_ego）单位向量 (ux, uy) ∈ [-1, 1]
+                      ux: 车前方向分量，uy: 车左方向分量
             - [38:40]: Base Velocity 归一化 (v_norm, w_norm) ∈ [-1, 1]
                       测量的当前线速度 v 和角速度 w
             - [40:44]: Action History 归一化 (v_t-1, w_t-1, v_t-2, w_t-2) ∈ [-1, 1]
@@ -60,7 +65,7 @@ def assemble_observations(
     # 1. LiDAR 归一化 [0, 1]
     lidar_normalized = np.clip(lidar_ranges / lidar_max_range, 0.0, 1.0).astype(np.float32)
     
-    # 2. User Input 单位向量 (ux, uy) ∈ [-1, 1]
+    # 2. User Input（user_intent_ego）单位向量 (ux, uy) ∈ [-1, 1]
     if user_input is None:
         # 如果未传入，则内部计算
         _, user_input_unit, _ = compute_user_intent_torch(
@@ -328,16 +333,16 @@ def get_obs(robots, env_origins, goal_pos, lidar_num_rays, lidar_max_range, scen
     # current_measured_v = robot_velocities_np[:, 0]
     # current_measured_w = robot_velocities_np[:, 5]
     
-    # 4. 用户意图
+    # 4. 用户意图（自车坐标系）：ux=前进方向，uy=左转方向
     # 张量移到GPU
     robot_pos_torch = torch.from_numpy(pos).float().to(device)
     robot_rot_torch = torch.from_numpy(rot).float().to(device)
     goal_pos_torch = torch.from_numpy(goal_pos).float().to(device)
     env_origins_torch = torch.from_numpy(env_origins).float().to(device)
-    _, user_intent_env, _ = compute_user_intent_torch(
+    _, user_intent_ego, _ = compute_user_intent_torch(
         robot_pos_torch, torch.tensor(yaw), goal_pos_torch, env_origins_torch, normalize=True
     )
-    user_intent_np = user_intent_env.cpu().numpy().astype(np.float32)  # 转回CPU
+    user_intent_np = user_intent_ego.cpu().numpy().astype(np.float32)  # 转回CPU；这是模型实际输入
     
     # 5. 组装观察向量
     obs = assemble_observations(

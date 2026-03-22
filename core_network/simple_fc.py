@@ -24,6 +24,9 @@ class SimpleFCPolicy(BasePolicy):
         )
         
         # 状态特征分支（8维：UserIntent(2)+BaseVel(2)+ActionHistory(4)）
+        # UserIntent 口径：user_intent_ego = [ux, uy]
+        # - ux: 自车正前方为正（forward +X）
+        # - uy: 自车左侧为正（left +Y）
         self.state_branch = nn.Sequential(
             nn.Linear(state_dim, hidden_dim//2),
             nn.Tanh(),

@@ -4,6 +4,7 @@
 """
 import math
 import numpy as np
+from omegaconf import OmegaConf
 from omni.isaac.core import World
 from omni.isaac.core.physics_context import PhysicsContext
 from omni.isaac.core.articulations import ArticulationView
@@ -13,7 +14,7 @@ from omni.isaac.wheeled_robots.controllers.differential_controller import Differ
 
 from sim.robot import (
     TB3_USD, WHEEL_RADIUS, WHEEL_BASE,
-    apply_massapi_all_tb3, configure_wheel_joints
+    MAX_V, MAX_W, apply_massapi_all_tb3, configure_wheel_joints
 )
 from sim.scenes import SceneManager
 
@@ -64,16 +65,16 @@ class EnvironmentSetup:
         self.show_visual_walls = show_visual_walls
         self.reset_scene_obstacles = reset_scene_obstacles
         
-        # 从配置读取参数
-        self.env_size = float(env_cfg.env.scene.env_size)
+        # 从配置读取参数；场景尺寸参数缺失时回退到 SceneManager 默认值
+        self.env_size = float(OmegaConf.select(env_cfg, "env.scene.env_size", default=6.0))
         self.env_gap = 2.0
         self.env_spacing = self.env_size + self.env_gap
-        self.wall_thickness = float(env_cfg.env.scene.wall_thickness)
-        self.wall_height = float(env_cfg.env.scene.wall_height)
+        self.wall_thickness = float(OmegaConf.select(env_cfg, "env.scene.wall_thickness", default=0.08))
+        self.wall_height = float(OmegaConf.select(env_cfg, "env.scene.wall_height", default=1.2))
         self.physics_dt = float(env_cfg.sim.dt)
         self.render_dt = 1.0 / 30.0
-        self.max_v = float(env_cfg.env.robot_limits.max_v)
-        self.max_w = float(env_cfg.env.robot_limits.max_w)
+        self.max_v = float(MAX_V)
+        self.max_w = float(MAX_W)
         
         # 初始化结果（在 setup_all 中填充）
         self.world = None

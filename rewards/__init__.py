@@ -8,6 +8,8 @@ from .heading import HeadingPenalty
 from .smoothness import SmoothnessPenalty
 from .static import StaticPenalty
 from .centrifugal import CentrifugalPenalty
+from .distance import DistanceReward
+from .goal import GoalReward
 from .composer import RewardComposer
 
 __all__ = [
@@ -17,5 +19,7 @@ __all__ = [
     'SmoothnessPenalty',
     'StaticPenalty',
     'CentrifugalPenalty',
+    'DistanceReward',
+    'GoalReward',
     'RewardComposer',
 ]

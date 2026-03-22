@@ -8,6 +8,8 @@ from .heading import HeadingPenalty
 from .smoothness import SmoothnessPenalty
 from .static import StaticPenalty
 from .centrifugal import CentrifugalPenalty
+from .distance import DistanceReward
+from .goal import GoalReward
 
 
 # 组件名称到类的映射
@@ -17,6 +19,8 @@ COMPONENT_CLASSES = {
     "smoothness": SmoothnessPenalty,
     "static": StaticPenalty,
     "centrifugal": CentrifugalPenalty,
+    "distance_reward": DistanceReward,
+    "goal_reward": GoalReward,
 }
 
 

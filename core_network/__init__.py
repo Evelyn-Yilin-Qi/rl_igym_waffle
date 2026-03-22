@@ -4,11 +4,13 @@ Core Network Module
 """
 from .base import BasePolicy, BaseValue
 from .simple_fc import SimpleFCPolicy, SimpleFCValue
+from .simple_fc_sft import SimpleFCSFTPolicy, SimpleFCSFTValue
 from .essay_base import EssayBasePolicy, EssayBaseValue
 
 __all__ = [
     'BasePolicy', 'BaseValue',
     'SimpleFCPolicy', 'SimpleFCValue',
+    'SimpleFCSFTPolicy', 'SimpleFCSFTValue',
     'EssayBasePolicy', 'EssayBaseValue',
 ]
 
@@ -24,6 +26,8 @@ def create_policy(network_type, **kwargs):
     """
     if network_type == "simple_fc":
         return SimpleFCPolicy(**kwargs)
+    elif network_type == "simple_fc_sft":
+        return SimpleFCSFTPolicy(**kwargs)
     elif network_type == "essay_base":
         return EssayBasePolicy(**kwargs)
     else:
@@ -41,6 +45,8 @@ def create_value(network_type, **kwargs):
     """
     if network_type == "simple_fc":
         return SimpleFCValue(**kwargs)
+    elif network_type == "simple_fc_sft":
+        return SimpleFCSFTValue(**kwargs)
     elif network_type == "essay_base":
         return EssayBaseValue(**kwargs)
     else:

@@ -1,7 +1,7 @@
 """
-RL Stage 1 PPO测试脚本 - 模块化版本
-使用模块化架构：core_network, algorithms, rewards
-训练逻辑与 stage1_test_origin.py 完全一致
+RL Stage 1 PPO测试脚本 - 模块化版本 v2
+使用模块化架构：core_network, algorithms, rewards, process_settings/env_setup
+训练逻辑与 stage1_test_modular.py 完全一致，但使用 EnvironmentSetup 类简化初始化
 """
 import os
 import sys
@@ -34,22 +34,11 @@ else:
 # 初始化Isaac Sim
 simulation_app = SimulationApp({"headless": False})
 
-from omni.isaac.core import World
-from omni.isaac.core.physics_context import PhysicsContext
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.objects import VisualSphere
-from omni.isaac.core.utils.stage import add_reference_to_stage
-from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
-
-# 导入自定义模块
-from sim.robot import (
-    TB3_USD, WHEEL_RADIUS, WHEEL_BASE,
-    apply_massapi_all_tb3, configure_wheel_joints
-)
 from sim.scenes import (
     SCENE_EMPTY, SCENE_BOX,
-    SceneManager, yaw_from_quat_wxyz, quat_wxyz_from_yaw, wrap_to_pi
+    yaw_from_quat_wxyz, quat_wxyz_from_yaw, wrap_to_pi
 )
+from sim.robot import MAX_V, MAX_W
 from envs.observations import (
     assemble_observations, 
     get_base_velocity_from_tensor,
@@ -63,6 +52,8 @@ from envs.user_intent import compute_user_intent_torch
 from core_network import create_policy, create_value
 from algorithms import create_algorithm
 from rewards import RewardComposer
+from process_settings.env_setup import EnvironmentSetup
+from utils.config_utils import get_enabled_component
 
 # ==================== 工具函数 ====================
 def load_config(cfg_path):
@@ -100,31 +91,23 @@ def save_model(rl_agent, checkpoint_dir, tag):
 # ==================== 主函数 ====================
 def main():
     # 加载配置（模块化配置）
-    env_cfg = load_config("cfg/WaffleDrive.yaml")  # 环境和物理配置
     network_cfg = load_config("config/network_config.yaml")  # 核心网络配置
     algo_cfg = load_config("config/algorithm_config.yaml")  # RL算法配置
     reward_cfg = load_config("config/reward_config.yaml")  # 奖励函数配置
     
-    # 配置参数（从env_cfg读取）
-    num_envs = 16  # 固定4个空场景，作为Stage1测试
-    env_size = float(env_cfg.env.scene.env_size)
-    env_gap = 2.0
-    env_spacing = env_size + env_gap
-    reset_dist = float(env_cfg.env.resetDist)
-    wall_thickness = float(env_cfg.env.scene.wall_thickness)
-    wall_height = float(env_cfg.env.scene.wall_height)
-    show_visual_walls = bool(env_cfg.env.scene.show_visual_walls)
+    # 配置参数（训练脚本内固定）
+    num_envs = 16  # 固定16个空场景，作为Stage1测试
+    reset_dist = 0.2
     TIMEOUT_SECONDS = 60.0
     
     # 物理和机器人参数
-    physics_dt = float(env_cfg.sim.dt)
-    render_dt = 1.0 / 30.0
-    max_v = float(env_cfg.env.robot_limits.max_v)
-    max_w = float(env_cfg.env.robot_limits.max_w)
+    physics_dt = 0.025
+    max_v = float(MAX_V)
+    max_w = float(MAX_W)
     
     # LiDAR参数
-    lidar_num_rays = int(env_cfg.env.lidar.num_rays)
-    lidar_max_range = float(env_cfg.env.lidar.max_range)
+    lidar_num_rays = 36
+    lidar_max_range = 3.0
     
     # 碰撞模型参数（轮椅胶囊形）
     DCOL = 0.2  # 碰撞阈值（20cm）
@@ -140,102 +123,30 @@ def main():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     
-    # 初始化仿真世界
-    world = World(stage_units_in_meters=1.0, physics_dt=physics_dt, rendering_dt=render_dt)
-    PhysicsContext().substeps = 8
-    world.scene.add_default_ground_plane()
-    stage = world.scene.stage
-    
-    # 环境原点 - 自动计算接近正方形的布局
-    import math
-    # 找到最接近 sqrt(num_envs) 的因数作为列数
-    target_cols = int(math.sqrt(num_envs))
-    num_cols = target_cols
-    # 从目标值向下找，找到能整除 num_envs 的最大因数
-    for cols in range(target_cols, 0, -1):
-        if num_envs % cols == 0:
-            num_cols = cols
-            break
-    num_rows = num_envs // num_cols
-    print(f"\n=== 环境布局 ===")
-    print(f"环境数量: {num_envs}")
-    print(f"布局: {num_cols}列 × {num_rows}行")
-    
-    env_origins = np.zeros((num_envs, 3), dtype=np.float32)
-    for i in range(num_envs):
-        ix = i % num_cols      # X方向索引（列）
-        iy = i // num_cols     # Y方向索引（行）
-        env_origins[i, 0] = ix * env_spacing
-        env_origins[i, 1] = iy * env_spacing
-    
-    # 加载机器人
-    for i in range(num_envs):
-        tb3_root = f"/World/envs/env_{i}/TB3"
-        add_reference_to_stage(usd_path=TB3_USD, prim_path=tb3_root)
-    
-    # 等待场景稳定
-    for _ in range(180):
-        world.step(render=True)
-    
-    # 创建机器人视图
-    robots = ArticulationView(
-        prim_paths_expr="/World/envs/env_.*/TB3/a__namespace_base_footprint",
-        name="tb3_view",
-        reset_xform_properties=False,
-    )
-    world.scene.add(robots)
-    world.reset()
-    robots.initialize()
-    
-    # 配置机器人物理属性
-    apply_massapi_all_tb3()
-    for _ in range(10):
-        world.step(render=True)
-    
-    # 配置轮子关节
-    left_idx, right_idx = configure_wheel_joints(robots)
-    if left_idx is None or right_idx is None:
-        print("[ERROR] Could not find wheel joints")
-        simulation_app.close()
-        return
-    
-    # 差速控制器
-    diff_ctrl = DifferentialController(
-        name="tb3_diff_ctrl",
-        wheel_radius=WHEEL_RADIUS,
-        wheel_base=WHEEL_BASE,
-        max_linear_speed=max_v,
-        max_angular_speed=max_w,
-    )
-    
-    # 场景管理器 - Stage1测试：固定4个空场景
+    # ==================== 使用 EnvironmentSetup 初始化环境 ====================
     scene_types = [SCENE_EMPTY] * num_envs  # 所有环境都是空场景
-    show_visual_walls_list = [show_visual_walls] * num_envs
-    scene_manager = SceneManager(
+    env_cfg = OmegaConf.create({"sim": {"dt": physics_dt}})
+    env_setup = EnvironmentSetup(
+        env_cfg=env_cfg,
         num_envs=num_envs,
-        env_size=env_size,
-        env_origins=env_origins,
-        stage=stage
+        scene_types=scene_types,
+        simulation_app=simulation_app,
+        rng=rng,
+        show_visual_walls=None,  # 让SceneManager按场景类型决定可视化墙
+        reset_scene_obstacles=False  # Stage1不需要重置障碍物
     )
-    scene_manager.wall_thickness = wall_thickness
-    scene_manager.wall_height = wall_height
-    scene_manager.create_scene_obstacles(scene_types=scene_types, show_visual_walls=show_visual_walls_list)
     
-    # 目标位置和标记
-    goal_pos = np.zeros((num_envs, 3), dtype=np.float32)
-    markers = []
-    for i in range(num_envs):
-        goal_pos[i] = scene_manager.get_goal_config(i, rng=rng)
-        m = world.scene.add(
-            VisualSphere(
-                prim_path=f"/World/envs/env_{i}/GoalMarker",
-                name=f"goal_marker_{i}",
-                position=goal_pos[i].tolist(),
-                radius=0.05,
-                color=np.array([1.0, 0.0, 0.0], dtype=np.float32),
-            )
-        )
-        markers.append(m)
+    # 一次性初始化所有环境
+    setup_result = env_setup.setup_all()
+    world = setup_result['world']
+    robots = setup_result['robots']
+    scene_manager = setup_result['scene_manager']
+    diff_ctrl = setup_result['diff_ctrl']
+    left_idx = setup_result['left_idx']
+    right_idx = setup_result['right_idx']
+    env_origins = setup_result['env_origins']
+    goal_pos = setup_result['goal_pos']
+    markers = setup_result['markers']
     
     # 初始化变量
     episode_start_time = np.zeros((num_envs,), dtype=np.float32)
@@ -264,8 +175,8 @@ def main():
     
     # ==================== 初始化模块化组件 ====================
     # 1. 创建核心网络
-    network_type = network_cfg.network.type
-    network_params = network_cfg.network.params.copy() if network_cfg.network.params else {}
+    network_type, network_params = get_enabled_component(network_cfg.networks)
+    network_params = network_params.copy() if network_params else {}
     
     # 自动设置所有架构通用的参数（这些不应该在配置文件中重复）
     network_params['obs_dim'] = 44  # 固定44维观察
@@ -277,8 +188,7 @@ def main():
     value = create_value(network_type, **network_params)
     
     # 2. 创建RL算法
-    algorithm_type = algo_cfg.algorithm.type
-    algorithm_params = algo_cfg.algorithm.params
+    algorithm_type, algorithm_params = get_enabled_component(algo_cfg.algorithms)
     rl_agent = create_algorithm(
         algorithm_type,
         policy=policy,
@@ -303,8 +213,8 @@ def main():
     total_epochs = 50           # 总共训练50轮（每轮一次ppo.update）
     save_every = 10             # 每10轮保存一次checkpoint
     update_count = 0            # 已完成的更新轮数
-    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_test_modular")
-    writer = SummaryWriter(log_dir=os.path.join(PROJECT_ROOT, "runs", "ppo_stage1_test_modular"))
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", "ppo_stage1_rl")
+    writer = SummaryWriter(log_dir=os.path.join(PROJECT_ROOT, "runs", "ppo_stage1_rl"))
     reward_component_sums = {}
     reward_component_count = 0
     
@@ -364,16 +274,19 @@ def main():
         current_measured_v = robot_velocities_np[:, 0]
         current_measured_w = robot_velocities_np[:, 5]
         
-        # 4. 用户意图
+        # 4. 用户意图（自车坐标系）
+        # user_intent_ego: [ux, uy]
+        #   ux > 0 表示目标在车前方（forward +X）
+        #   uy > 0 表示目标在车左侧（left +Y）
         # 张量移到GPU
         robot_pos_torch = torch.from_numpy(pos).float().to(device)
         robot_rot_torch = torch.from_numpy(rot).float().to(device)
         goal_pos_torch = torch.from_numpy(goal_pos).float().to(device)
         env_origins_torch = torch.from_numpy(env_origins).float().to(device)
-        _, user_intent_env, _ = compute_user_intent_torch(
+        _, user_intent_ego, _ = compute_user_intent_torch(
             robot_pos_torch, torch.tensor(yaw), goal_pos_torch, env_origins_torch, normalize=True
         )
-        user_intent_np = user_intent_env.cpu().numpy().astype(np.float32)  # 转回CPU
+        user_intent_np = user_intent_ego.cpu().numpy().astype(np.float32)  # 转回CPU；obs[36:38] 使用该口径
         
         # 5. 组装观察向量
         obs = assemble_observations(
@@ -517,7 +430,7 @@ def main():
             print(f'角速度：{w_cmd}')
             print(f'线速度：{v_cmd}')
             print(f'目标距离：{dist}')
-            print(f'用户意图：{user_intent_env}')
+            print(f'用户意图(ego)：{user_intent_ego}')
             print(f'角度差：{yaw_err}')
 
             # TensorBoard记录：训练loss信息

@@ -1,41 +1,9 @@
-# 模块化架构设计方案
-
-## 📋 目录
-
-- [项目概述](#项目概述)
-- [目录结构](#目录结构)
-- [核心模块详解](#核心模块详解)
-  - [core_network/ - 核心网络架构模块](#core_network---核心网络架构模块)
-  - [algorithms/ - RL算法模块](#algorithms---rl算法模块)
-  - [rewards/ - 奖励函数模块](#rewards---奖励函数模块)
-  - [envs/ - 环境观察模块](#envs---环境观察模块)
-  - [sim/ - 仿真环境模块](#sim---仿真环境模块)
-  - [process_settings/ - 训练流程设置模块](#process_settings---训练流程设置模块)
-  - [config/ - 配置模块](#config---配置模块)
-  - [utils/ - 工具函数模块](#utils---工具函数模块)
-- [核心接口设计](#核心接口设计)
-- [配置文件说明](#配置文件说明)
-- [使用示例](#使用示例)
-
----
-
-## 项目概述
-
-本项目是一个基于 **Isaac Sim** 的 **TurtleBot3 (TB3)** 机器人强化学习训练框架，采用模块化设计，支持：
-
-- ✅ **多种网络架构**：`simple_fc`（简单全连接）、`essay_base`（1D Conv + LSTM）
-- ✅ **多种RL算法**：PPO（已实现），可扩展 SAC、TD3 等
-- ✅ **模块化奖励函数**：障碍物惩罚、航向惩罚、平滑度惩罚、静态惩罚、离心力惩罚等
-- ✅ **多场景训练**：EMPTY、BOX、CYLINDER、DOOR 等场景
-- ✅ **配置驱动**：通过 YAML 配置文件切换架构、算法、奖励函数，无需修改代码
-
----
 
 ## 目录结构
 
 ```
 rl_igym_waffle/
-├── core_network/        # 核心网络架构模块
+├── core_network/        ❗❗❗如果后续要用别的架构就要改这里   # 核心网络架构模块
 │   ├── __init__.py      # 工厂函数：create_policy(), create_value()
 │   ├── base.py          # 基础接口：BasePolicy, BaseValue
 │   ├── simple_fc.py     # 简单全连接架构（LiDAR分支 + 状态分支）
@@ -47,10 +15,10 @@ rl_igym_waffle/
 │   ├── base.py          # 算法基础接口：BaseRLAlgorithm
 │   └── ppo.py           # PPO算法实现
 │
-├── rewards/             # 奖励函数模块
+├── rewards/             ❗❗❗如果要改奖励函数的参数请动这里 # 奖励函数模块
 │   ├── __init__.py      # 导出所有奖励组件
 │   ├── base.py          # 奖励组件基类：BaseRewardComponent
-│   ├── composer.py      # 奖励组合器：RewardComposer（统一管理）
+│   ├── composer.py      # 奖励组合器：RewardComposer（统一管理）  ❗组装所有enable为 Ture的奖励函数
 │   ├── obstacle.py      # 障碍物惩罚
 │   ├── heading.py       # 航向惩罚
 │   ├── smoothness.py    # 动作平滑惩罚
@@ -75,7 +43,13 @@ rl_igym_waffle/
 │   ├── __init__.py
 │   └── env_setup.py     # 环境初始化类：EnvironmentSetup
 │
-├── config/              # 配置模块（YAML格式）
+├── sft/                 ❗❗❗SFT相关逻辑都在这里
+│   ├── rule_controller.py  # 规则控制器：监督label怎么生成
+│   ├── supervised.py       # 监督训练：MSE训练策略网络   要是觉得需要改就动这里
+│   ├── logging.py          # SFT/RL打印工具 正式的Stage里面就不print了
+│   └── config.py           # SFT相关配置读取工具（轻量）
+│
+├── config/              ❗❗❗ 改要使用的re function； network；RL 策略等# 配置模块（YAML格式）  
 │   ├── network_config.yaml    # 网络架构配置（支持enabled切换）
 │   ├── algorithm_config.yaml  # RL算法配置（支持enabled切换）
 │   └── reward_config.yaml     # 奖励函数配置（支持enabled/weight）
@@ -83,22 +57,68 @@ rl_igym_waffle/
 ├── utils/               # 工具函数模块
 │   └── config_utils.py  # 配置读取工具：get_enabled_component()
 │
-├── scripts/              # 训练脚本
-│   ├── stage1_test_modular_v2.py  # Stage 1训练（单一场景）
-│   └── stage2_test_modular_v2.py  # Stage 2训练（混合场景）
+├── scripts/              # 训练脚本   （有关SFT以及RL的一些参数代码的命名我都改了，注释里面写了原名和现名，改是为了统一加上好理解
+│   ├── stage1_rl_sft.py       # ❗❗❗❗❗Stage1 SFT + RL 之后修改stage1主要用这个  只有空场景 目前env中写死了16个
+│   │                             只能说跑通了,效果完全没验证过                         env改的时候建议【4，16，32，64这种的】
+│   ├── stage2_rl_sft.py       # ❗❗❗❗❗Stage2 SFT + RL 之后修改stage2主要用这个  四个场景 目前env中写死了16个
+│   │                             只能说跑通了,效果完全没验证过                         env改的时候建议【4，16，32，64这种的】
+│   ├── sft_rl_tb3_V3_modular.py ❗❗❗❗❗ 如果要做任何运行测试，可以在这里做，但只运行一个env，四个场景都可选择可以在代码中切换，main注释写清楚了
+│   │                           
+│   ├── sft_rl_tb3_V3.py       # 冯的版本对齐到V3  这个可以运行，但是只是box单一场景 (test)
+│   ├── sft_rl_tb3.py          # 冯原始的脚本  (test)
+│   └── PPO_ckpt_test.py       # checkpoint打包/测试脚本  反正现在没有可用的模型我就没动，这个代码没有做适配
 │
-├── tb3_model_package/   # 模型打包（用于分发）
-│   ├── tb3_model.py     # 独立推理类（包含模型结构）
-│   ├── ppo_final_*.pth  # 训练好的模型权重
-│   ├── requirements.txt # 依赖包
-│   └── README.md        # 使用说明
+│   # 旧脚本（别用了）
+│   ├── recent_old_version/stage1_sft_rl.py
+│   ├── recent_old_version/stage2_sft_rl.py
+│   └── test/stage1_rl.py, test/stage2_rl.py, test/*.py
 │
-└── cfg/                 # 保留原有配置（向后兼容）   
-    └── WaffleDrive.yaml  # Isaac Sim环境配置  
-     ❗PPO_tb3 copy, stage1_test_origin 这两个还没集成的代码用的是cfg，其他均没有用到
+└── cfg/                 # 别再用了，只是为了几个老脚本留着了,新脚本都没引用 
+    ├── WaffleDrive.yaml  # 
 ```
 
 ---
+
+
+这个工程在做的事情，在isaac gym 仿真平台中使用不同的场景scene，然后并行加载多个env环境做TB3小车的强化学习训练，让小车学会跟随user intent行走的同时学会丝滑转向避障等。
+训练在stage1的时候只会加载一个类型的scene，即空场景, 使用这一个场景生成多个env环境
+训练在stage2的时候会加载四个类型的scene，除了空场景之外，还有带有障碍物的场景，使用四个场景生成env环境训练
+
+# 模块化架构设计方案
+
+## 📋 目录
+
+- [项目概述](#项目概述)
+- [目录结构](#目录结构)
+- [核心模块详解](#核心模块详解)
+  - [core_network/ - 核心网络架构模块](#core_network---核心网络架构模块)
+  - [algorithms/ - RL算法模块](#algorithms---rl算法模块)
+  - [rewards/ - 奖励函数模块](#rewards---奖励函数模块)
+  - [envs/ - 环境观察模块](#envs---环境观察模块)
+  - [sim/ - 仿真环境模块](#sim---仿真环境模块)
+  - [process_settings/ - 训练流程设置模块](#process_settings---训练流程设置模块)
+  - [sft/ - SFT模块](#sft---sft模块)
+  - [config/ - 配置模块](#config---配置模块)
+  - [utils/ - 工具函数模块](#utils---工具函数模块)
+- [核心接口设计](#核心接口设计)
+- [配置文件说明](#配置文件说明)
+- [使用示例](#使用示例)
+- [当前开发必看入口（最重要）](#当前开发必看入口最重要)
+
+---
+
+## 项目概述
+
+本项目是一个基于 **Isaac Sim** 的 **TurtleBot3 (TB3)** 机器人强化学习训练框架，采用模块化设计，支持：
+
+- ✅ **多种网络架构**：`simple_fc`（简单全连接）、`essay_base`（1D Conv + LSTM）
+- ✅ **多种RL算法**：PPO（已实现），可扩展 SAC、TD3 等
+- ✅ **模块化奖励函数**：障碍物惩罚、航向惩罚、平滑度惩罚、静态惩罚、离心力惩罚等
+- ✅ **多场景训练**：EMPTY、BOX、CYLINDER、DOOR 等场景
+- ✅ **配置驱动**：通过 YAML 配置文件切换架构、算法、奖励函数，无需修改代码
+
+---
+
 
 ## 核心模块详解
 
@@ -215,6 +235,8 @@ losses = rl_agent.update()  # 返回训练损失
   - 惩罚机器人静止不动
 - **`centrifugal.py`**：离心力惩罚（可选）
   - 惩罚过大的离心力（可选：linear、threshold、quadratic模式）
+- **`distance.py`**：距离奖励（负距离项）
+- **`goal.py`**：到达奖励 + 超时惩罚
 
 **使用方式**：
 ```python
@@ -260,6 +282,10 @@ reward, reward_info = reward_composer.compute(
     - LiDAR(36) + UserIntent(2) + BaseVel(2) + ActionHistory(4) = 44维
 - **`user_intent.py`**：
   - `compute_user_intent_torch()`：计算用户意图（目标方向向量，2维）
+  - **UserIntent 统一口径（全工程）**：
+    - `ux`：自车正前方为正方向（forward +X）
+    - `uy`：自车左侧90度为正方向（left +Y）
+    - 模型输入使用 `user_intent_ego`（自车坐标系），而非环境/世界坐标系向量
 
 **使用方式**：
 ```python
@@ -372,6 +398,28 @@ env_origins = env_setup.env_origins
 
 ---
 
+### `sft/` - SFT模块
+
+**职责**：把“监督阶段”从主训练脚本里拆出来，集中管理规则采样、监督训练和日志打印。
+
+**你最常改的文件**：
+- **`rule_controller.py`**  
+  - 改“监督采样时机器人怎么走”的规则（避障、转向、速度分配）
+  - 想改变 SFT label 的行为，就改这里
+- **`supervised.py`**  
+  - 改监督训练过程（loss/batch/epoch/训练细节）
+  - 当前是对 policy mean 做 MSE 训练
+- **`logging.py`**  
+  - 改 SFT/RL阶段终端输出格式
+- **`config.py`**  
+  - 轻量配置读取工具（非主配置）
+
+**与主脚本关系**：
+- `scripts/stage1_rl_sft.py` / `scripts/stage2_rl_sft.py` 会调用这里的模块
+- 训练主循环负责环境交互；`sft/` 负责监督阶段逻辑
+
+---
+
 ### `config/` - 配置模块
 
 **职责**：通过YAML配置文件管理所有模块的参数，支持配置驱动的切换。
@@ -380,6 +428,7 @@ env_origins = env_setup.env_origins
 - 网络架构配置（支持 `enabled` 切换）
 - RL算法配置（支持 `enabled` 切换）
 - 奖励函数配置（支持 `enabled` 和 `weight` 调整）
+- 新脚本统一读取 `config/*`，**不再读取 `cfg/*`**
 
 **文件说明**：
 - **`network_config.yaml`**：
@@ -442,7 +491,7 @@ network_type, network_params = get_enabled_component(network_cfg.networks)
     1. 从配置的 `components` 列表中找到 `enabled: true` 的组件
     2. 检查是否有且仅有一个启用的组件（防止配置错误）
     3. 返回组件的 `name` 和 `params`
-  - **使用位置**：`stage1_test_modular_v2.py`、`stage2_test_modular_v2.py`
+  - **使用位置**：`scripts/stage1_rl_sft.py`、`scripts/stage2_rl_sft.py`、`scripts/sft_rl_tb3_V3.py`
   - **使用场景**：
     - 从 `network_config.yaml` 中提取启用的网络架构（如 `"essay_base"`）
     - 从 `algorithm_config.yaml` 中提取启用的算法（如 `"ppo"`）
@@ -688,27 +737,64 @@ rewards:
 
 ---
 
+## 当前开发必看入口（最重要）
+
+下面是“改需求时最该动的地方”，按优先级排序：
+
+1. **SFT规则逻辑改这里**：`sft/rule_controller.py`
+   - `compute_velocity_commands()` 是规则控制器输出 label 的核心。
+   - 想改“监督阶段机器人怎么走、如何避障、如何转向”就改这里。
+
+2. **SFT监督训练改这里**：`sft/supervised.py`
+   - `train_supervised_policy()` 定义了监督训练方式（当前是 MSE 训练 policy mean）。
+   - 想改 batch、loss、优化轮数策略就改这里。
+
+3. **主训练流程入口**：
+   - `scripts/stage1_rl_sft.py`：16 env + EMPTY 场景，先 SFT 再 PPO
+   - `scripts/stage2_rl_sft.py`：16 env + 4场景混合，先 SFT 再 PPO，默认从 stage1 模型继续训
+
+4. **网络架构切换（不改脚本）**：`config/network_config.yaml`
+   - 通过 `enabled: true/false` 选择当前架构（如 `simple_fc` / `simple_fc_sft` / `essay_base`）。
+
+5. **奖励组装开关（不改脚本）**：`config/reward_config.yaml`
+   - 通过每个 reward component 的 `enabled` 控制是否参与总奖励组合。
+   - 通过 `weight` 做权重缩放。
+
+6. **奖励公式参数改这里**：
+   - 先改 `config/reward_config.yaml` 的 `params`（优先）
+   - 若需要改公式本身，再改 `rewards/*.py` 对应组件实现
+   - 例如：障碍物惩罚改 `rewards/obstacle.py`，目标奖励改 `rewards/goal.py`
+
+7. **checkpoint 产物位置与命名**
+   - 各训练脚本里的 `checkpoint_dir` 决定输出目录（通常在 `checkpoints/` 下）
+   - 当前 SFT/RL脚本保存文件名带时间戳，精确到分钟（`YYYYMMDD_HHMM`）
+   - 常见命名：`ppo_supervised_final_*.pth`、`ppo_epoch_XXX_*.pth`、`ppo_final_*.pth`
+
+8. **`cfg/` 目录状态**
+   - `cfg/*` 是 legacy 兼容目录，保留给老脚本。
+   - 新增脚本或新需求开发，不应再依赖 `cfg/*`。
+
+---
+
 ## 使用示例
 
-### 完整训练流程（`scripts/stage1_test_modular_v2.py`）
+### 完整训练流程（`scripts/stage1_rl_sft.py`）
 
 ```python
 # 1. 加载配置
-env_cfg = load_config("cfg/WaffleDrive.yaml")
 network_cfg = load_config("config/network_config.yaml")
 algo_cfg = load_config("config/algorithm_config.yaml")
 reward_cfg = load_config("config/reward_config.yaml")
 
-# 2. 初始化环境
-env_setup = EnvironmentSetup.setup_all(
-    env_cfg=env_cfg,
-    num_envs=16,
-    scene_types=["EMPTY"] * 16,
-    simulation_app=simulation_app,
-    rng=rng
-)
+# 2. 脚本内定义环境参数（新流程不依赖 cfg/WaffleDrive.yaml）
+num_envs = 16
+scene_types = ["EMPTY"] * 16  # stage1
+env_cfg = OmegaConf.create({"sim": {"dt": 0.025}})
 
-# 3. 创建网络
+# 3. 初始化环境
+env_setup = EnvironmentSetup(...)
+
+# 4. 创建网络
 network_type, network_params = get_enabled_component(network_cfg.networks)
 network_params.update({
     'obs_dim': 44,
@@ -719,7 +805,7 @@ network_params.update({
 policy = create_policy(network_type, **network_params)
 value = create_value(network_type, **network_params)
 
-# 4. 创建RL算法
+# 5. 创建RL算法
 algorithm_type, algorithm_params = get_enabled_component(algo_cfg.algorithms)
 rl_agent = create_algorithm(
     algorithm_type,
@@ -729,10 +815,10 @@ rl_agent = create_algorithm(
     device=device
 )
 
-# 5. 创建奖励组合器
+# 6. 创建奖励组合器
 reward_composer = RewardComposer(reward_cfg.rewards)
 
-# 6. 训练循环
+# 7. 训练循环（SFT阶段收集 -> 监督训练 -> PPO阶段更新）
 for step in range(max_steps):
     # 获取观察
     obs = assemble_observations(...)
@@ -743,13 +829,13 @@ for step in range(max_steps):
     # 执行动作，获取下一状态
     # ... (Isaac Sim环境交互)
     
-    # 计算奖励
+    # 计算奖励（SFT阶段也会算，但SFT loss不使用reward）
     reward, reward_info = reward_composer.compute(...)
     
     # 存储经验
     rl_agent.store_transition(obs, action, reward, next_obs, done, log_prob)
     
-    # 更新策略
+    # PPO阶段更新策略
     if step % update_freq == 0:
         losses = rl_agent.update()
         # 记录TensorBoard
@@ -767,30 +853,7 @@ for step in range(max_steps):
    - 新增RL算法：实现 `BaseRLAlgorithm`，在配置中添加
    - 新增奖励组件：实现 `BaseRewardComponent`，在配置中添加
 4. **代码复用**：`EnvironmentSetup` 统一环境初始化，减少重复代码
-5. **便于分发**：`tb3_model_package/` 包含独立推理类，可直接分发给组员使用
-
----
-
-## 模型分发
-
-训练好的模型可以通过 `tb3_model_package/` 文件夹分发给组员：
-
-1. **包含文件**：
-   - `tb3_model.py`：独立推理类（包含模型结构定义）
-   - `ppo_final_*.pth`：模型权重文件
-   - `requirements.txt`：依赖包
-   - `README.md`：使用说明
-
-2. **使用方式**：
-   ```python
-   from tb3_model import TB3ModelInference
-   
-   # 自动查找同目录下的.pth文件
-   model = TB3ModelInference()
-   
-   # 预测动作
-   action = model.predict(observation, deterministic=True)
-   ```
+5. **便于协作**：训练入口、配置入口、奖励入口都已集中，可快速定位修改点
 
 ---
 

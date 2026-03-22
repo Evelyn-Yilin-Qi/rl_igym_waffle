@@ -1,14 +1,27 @@
 """
 User Intent Vector Calculation
-计算用户意图向量 (ux, uy)，严格为单位向量：√(ux² + uy²) = 1, ux, uy ∈ [-1, 1]
+
+工程统一定义（必须保持一致）：
+- user_intent 使用自车坐标系（ego/body frame）
+- ux（第0维）: 小车正前方为正方向（forward +X）
+- uy（第1维）: 小车左侧90度为正方向（left +Y）
+- 默认归一化后为单位向量，模长约为1（目标与车重合时为[0, 0]）
 """
 import numpy as np
 import torch
 
 def convert_to_ego_frame(dir_vec_env, yaw):
     """
-    修正版：将环境坐标系向量转换为自车坐标系（X前，Y左）
-    增加中间值打印，方便调试
+    将环境坐标系方向向量转换为自车坐标系方向向量。
+
+    输入:
+    - dir_vec_env: 环境坐标系中的方向向量（机器人位置 -> 目标位置）
+    - yaw: 机器人偏航角（环境坐标系）
+
+    输出:
+    - dir_vec_ego: 自车坐标系向量 [ux, uy]
+      * ux > 0 表示目标在车前方
+      * uy > 0 表示目标在车左侧
     """
     # 确保输入是float32，避免精度问题
     dir_vec_env = dir_vec_env.float()
@@ -41,7 +54,12 @@ def compute_user_intent_torch(
     normalize: bool = True
 ):
     """
-    修正版：计算用户意图向量（增加全流程打印，修复精度问题）
+    计算用户意图向量。
+
+    Returns:
+    - dir_vec_env: 环境坐标系方向向量（未归一化）
+    - dir_vec_ego: 自车坐标系方向向量（默认归一化，作为模型输入）
+    - dist: 机器人到目标距离
     """
     # 1. 强制转换为float32，避免精度问题
     robot_positions = robot_positions.float()
@@ -64,7 +82,7 @@ def compute_user_intent_torch(
     dist = torch.sqrt(torch.sum(dir_vec_env **2, dim=1))  # 替代torch.norm，更稳定
     # print(f"到目标的距离: {dist.item():.6f}")
     
-    # 5. 转换到自车坐标系
+    # 5. 转换到自车坐标系（X前，Y左）
     # print(f"\n=== 自车坐标系转换 ===")
     dir_vec_ego = convert_to_ego_frame(dir_vec_env, robot_yaw)
     
@@ -86,5 +104,6 @@ def compute_user_intent_torch(
         # print(f"  归一化后自车向量: {dir_vec_ego_norm.cpu().numpy()}")
         dir_vec_ego = dir_vec_ego_norm
     
+    # 注意：第二个返回值 dir_vec_ego 才是训练中 user_intent 的标准输入口径
     return dir_vec_env, dir_vec_ego, dist
 

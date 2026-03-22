@@ -9,3 +9,8 @@ networks:
       enabled: false
       params:
         hidden_dim: 128  # 隐藏层维度
+
+    - name: "simple_fc_sft"  # SFT版本全连接架构：ReLU分支，44维观察
+      enabled: false
+      params:
+        hidden_dim: 128

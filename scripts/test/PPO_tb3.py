@@ -756,16 +756,19 @@ def get_obs(robots, env_origins, goal_pos, lidar_num_rays, lidar_max_range, scen
         current_measured_v = robot_velocities_np[:, 0]
         current_measured_w = robot_velocities_np[:, 5]
         
-        # 4. 用户意图
+        # 4. 用户意图（自车坐标系）
+        # user_intent_ego: [ux, uy]
+        #   ux > 0 表示目标在车前方（forward +X）
+        #   uy > 0 表示目标在车左侧（left +Y）
         # 张量移到GPU
         robot_pos_torch = torch.from_numpy(pos).float().to(device)
         robot_rot_torch = torch.from_numpy(rot).float().to(device)
         goal_pos_torch = torch.from_numpy(goal_pos).float().to(device)
         env_origins_torch = torch.from_numpy(env_origins).float().to(device)
-        _, user_intent_env, _ = compute_user_intent_torch(
+        _, user_intent_ego, _ = compute_user_intent_torch(
             robot_pos_torch, torch.tensor(yaw), goal_pos_torch, env_origins_torch, normalize=True
         )
-        user_intent_np = user_intent_env.cpu().numpy().astype(np.float32)  # 转回CPU
+        user_intent_np = user_intent_ego.cpu().numpy().astype(np.float32)  # 转回CPU；obs[36:38] 使用该口径
         
         # 5. 组装观察向量
         obs = assemble_observations(
@@ -1015,16 +1018,19 @@ def main():
         current_measured_v = robot_velocities_np[:, 0]
         current_measured_w = robot_velocities_np[:, 5]
         
-        # 4. 用户意图
+        # 4. 用户意图（自车坐标系）
+        # user_intent_ego: [ux, uy]
+        #   ux > 0 表示目标在车前方（forward +X）
+        #   uy > 0 表示目标在车左侧（left +Y）
         # 张量移到GPU
         robot_pos_torch = torch.from_numpy(pos).float().to(device)
         robot_rot_torch = torch.from_numpy(rot).float().to(device)
         goal_pos_torch = torch.from_numpy(goal_pos).float().to(device)
         env_origins_torch = torch.from_numpy(env_origins).float().to(device)
-        _, user_intent_env, _ = compute_user_intent_torch(
+        _, user_intent_ego, _ = compute_user_intent_torch(
             robot_pos_torch, torch.tensor(yaw), goal_pos_torch, env_origins_torch, normalize=True
         )
-        user_intent_np = user_intent_env.cpu().numpy().astype(np.float32)  # 转回CPU
+        user_intent_np = user_intent_ego.cpu().numpy().astype(np.float32)  # 转回CPU；obs[36:38] 使用该口径
         
         # 5. 组装观察向量
         obs = assemble_observations(
@@ -1156,7 +1162,7 @@ torch.tensor(act).unsqueeze(0).to(device)).sum().detach().cpu().numpy()
             print(f'角速度：{w_cmd}')
             print(f'线速度：{v_cmd}')
             print(f'目标距离：{dist}')
-            print(f'用户意图：{user_intent_env}')
+            print(f'用户意图(ego)：{user_intent_ego}')
             print(f'角度差：{yaw_err}')
             # 打印GPU使用情况（如果使用GPU）
             # if torch.cuda.is_available():
