@@ -1,5 +1,5 @@
-## 目录结构
-
+把SFT加到了stage1和stage2的训练过程里面，且保留了更改的过程，请主要使用 sft_rl_tb3_V3_modular；stage2_rl_sft；stage1_rl_sft 这三个代码！
+关注我写的❗❗❗的地方都比较重要，其他地方能不改就不改了吧
 ```
 rl_igym_waffle/
 ├── core_network/        ❗❗❗如果后续要用别的架构就要改这里   # 核心网络架构模块
@@ -7,7 +7,7 @@ rl_igym_waffle/
 │   ├── base.py          # 基础接口：BasePolicy, BaseValue
 │   ├── simple_fc.py     # 简单全连接架构（LiDAR分支 + 状态分支）
 │   └── essay_base.py    # 论文架构（1D Conv + LSTM）
-│    （❗或许我们还有很多别的架构）
+│    （或许我们还有很多别的架构）
 │
 ├── algorithms/          # RL算法模块
 │   ├── __init__.py      # 工厂函数：create_algorithm()
@@ -65,7 +65,7 @@ rl_igym_waffle/
 │   │                           
 │   ├── sft_rl_tb3_V3.py       # 冯的版本对齐到V3  这个可以运行，但是只是box单一场景 (test)
 │   ├── sft_rl_tb3.py          # 冯原始的脚本  (test)
-│   └── PPO_ckpt_test.py       # checkpoint打包/测试脚本  反正现在没有可用的模型我就没动，这个代码没有做适配
+│   └── PPO_ckpt_test.py       # ❗❗❗checkpoint打包/测试脚本  反正现在没有可用的模型我就没动，这个代码没有做适配
 │
 │   # 旧脚本（别用了）
 │   ├── recent_old_version/stage1_sft_rl.py
