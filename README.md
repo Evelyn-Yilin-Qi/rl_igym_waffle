@@ -12,6 +12,8 @@ Reinforcement learning training for **TurtleBot3 (Waffle Pi)** in **Isaac Sim**:
 
 ---
 
+## Training Scenario Demonstration
+
 ## Quick start
 
 From the **repository root**:
