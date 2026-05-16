@@ -3,7 +3,7 @@ algorithms:
     - name: "ppo"  # Proximal Policy Optimization
       enabled: true
       params:
-        lr: 3e-4
+        lr: 1e-4
         gamma: 0.98
         lamda: 0.90
         clip_eps: 0.2

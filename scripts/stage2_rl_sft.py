@@ -266,6 +266,7 @@ def main(checkpoint_path=None):
         w_gain=1.8,
         obstacle_v_gain=0.3,
         obstacle_w_gain=2.2,
+        num_rays=lidar_num_rays,
     )
 
     for _ in range(8):

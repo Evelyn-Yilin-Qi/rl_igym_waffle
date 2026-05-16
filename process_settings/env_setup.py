@@ -152,6 +152,10 @@ class EnvironmentSetup:
         # 等待场景稳定
         for _ in range(180):
             self.world.step(render=True)
+
+        # 在 Articulation 加入 World 并产生接触「之前」写入 MassAPI，避免初始化后再改质量/惯量
+        # 导致 PhysX 重解接触、车尾俯仰来回振荡几次。
+        mass_base_cnt, _ = apply_massapi_all_tb3()
         
         # 创建机器人视图
         self.robots = ArticulationView(
@@ -162,10 +166,12 @@ class EnvironmentSetup:
         self.world.scene.add(self.robots)
         self.world.reset()
         self.robots.initialize()
+        # USD 若尚未展开，早期 MassAPI 可能未命中；此处补写一次（与早期参数相同，无额外弹跳风险）
+        if mass_base_cnt == 0:
+            apply_massapi_all_tb3()
         
-        # 配置机器人物理属性
-        apply_massapi_all_tb3()
-        for _ in range(10):
+        # 首轮接触后静置，耗散接触求解带来的小幅弹跳
+        for _ in range(32):
             self.world.step(render=True)
         
         # 配置轮子关节
@@ -174,6 +180,12 @@ class EnvironmentSetup:
             print("[ERROR] Could not find wheel joints")
             self.simulation_app.close()
             raise RuntimeError("Could not find wheel joints")
+
+        self.robots.set_joint_velocity_targets(
+            np.zeros((self.num_envs, self.robots.num_dof), dtype=np.float32)
+        )
+        for _ in range(8):
+            self.world.step(render=True)
         
         # 创建差速控制器
         self.diff_ctrl = DifferentialController(

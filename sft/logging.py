@@ -8,6 +8,15 @@ def print_phase_status(train_mode, step_count, supervised_steps, supervised_obs_
             f"当前阶段: SUPERVISED | step={step_count}/{supervised_steps} | "
             f"已收集样本: {supervised_obs_count}"
         )
+    elif train_mode in ("apf", "apf_vo", "orca"):
+        print("\n=== 经典局部规划 ===")
+        print(
+            f"当前阶段: {train_mode.upper()} | step={step_count} | "
+            f"最近100步平均奖励: {avg_reward:.2f}"
+        )
+    elif train_mode in ("rule", "rule_based"):
+        print("\n=== 规则控制器 (RuleBased) ===")
+        print(f"当前阶段: RULE | step={step_count} | 最近100步平均奖励: {avg_reward:.2f}")
     else:
         print("\n=== PPO策略更新 ===")
         print(

@@ -14,3 +14,17 @@ networks:
       enabled: false
       params:
         hidden_dim: 128
+
+    # 以下为 360 LiDAR + 4 维状态 的对比结构（与 train_actor.py PRETRAIN_VARIANTS 对齐）
+    - name: "cnn_lstm_sft"
+      enabled: false
+      params: {}
+    - name: "cnn_lstm_sft_nodoor"
+      enabled: false
+      params: {}
+    - name: "cnn_gru_sft"
+      enabled: false
+      params: {}
+    - name: "fc_lstm_sft"
+      enabled: false
+      params: {}

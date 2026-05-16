@@ -280,8 +280,50 @@ class SceneManager:
         scene_type = self.scene_types[env_id]
         env_origin = self.env_origins[env_id]
         
-        if scene_type == SCENE_EMPTY or scene_type == SCENE_CYLINDER:
+        if scene_type == SCENE_EMPTY:
             goal_offset = sample_goal_offsets(1, r_min=1.0, r_max=1.5)[0]
+            goal_pos = np.array([
+                env_origin[0] + goal_offset[0],
+                env_origin[1] + goal_offset[1],
+                0.03
+            ], dtype=np.float32)
+        elif scene_type == SCENE_CYLINDER:
+            # Cylinder 场景：采样时直接避开障碍物，避免目标点与圆柱重叠
+            handles = self.scene_handles[env_id]
+            cyl_infos = []
+            for cyl in handles["cyls"]:
+                cyl_pos = cyl["t_op"].Get()
+                cyl_radius = cyl["geom"].GetRadiusAttr().Get()
+                cyl_infos.append(
+                    (
+                        float(cyl_pos[0] - env_origin[0]),
+                        float(cyl_pos[1] - env_origin[1]),
+                        float(cyl_radius),
+                    )
+                )
+
+            goal_clearance = 0.08
+            max_trials = 256
+            goal_offset = None
+
+            for _ in range(max_trials):
+                ang = float(rng.uniform(-np.pi, np.pi))
+                radius = float(rng.uniform(1.0, 2.5))  # 原值 1.5，扩大到 2.5 让目标可出现在柱子后方
+                cand = np.array([radius * np.cos(ang), radius * np.sin(ang)], dtype=np.float32)
+
+                is_valid = True
+                for cx, cy, cr in cyl_infos:
+                    if np.linalg.norm(cand - np.array([cx, cy], dtype=np.float32)) <= (cr + goal_clearance):
+                        is_valid = False
+                        break
+
+                if is_valid:
+                    goal_offset = cand
+                    break
+
+            if goal_offset is None:
+                goal_offset = np.array([2.0, 0.0], dtype=np.float32)  # 兜底安全点，远离所有柱子
+
             goal_pos = np.array([
                 env_origin[0] + goal_offset[0],
                 env_origin[1] + goal_offset[1],

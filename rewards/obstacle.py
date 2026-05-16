@@ -44,7 +44,7 @@ class ObstaclePenalty(BaseRewardComponent):
             danger_mask = (min_dist_non_collision > dcol) & (min_dist_non_collision < dcrit)
             # 计算障碍物惩罚
             obstacle_pen_non_collision = np.zeros_like(min_dist_non_collision)
-            obstacle_pen_non_collision[danger_mask] = (rc + rcrit * (dcrit - min_dist_non_collision[danger_mask]) ** 2) * self.weight
+            obstacle_pen_non_collision[danger_mask] = (rc + rcrit * (dcrit - min_dist_non_collision[danger_mask])) * self.weight
             # 赋值回总惩罚数组
             reward[non_collision_mask] = obstacle_pen_non_collision
         

@@ -75,17 +75,17 @@ class SimpleFCValue(BaseValue):
         # LiDAR特征提取分支
         self.lidar_branch = nn.Sequential(
             nn.Linear(lidar_dim, hidden_dim),
-            nn.Tanh(),
+            nn.relu(),
             nn.Linear(hidden_dim, hidden_dim//2),
-            nn.Tanh()
+            nn.relu()
         )
         
         # 状态特征分支
         self.state_branch = nn.Sequential(
             nn.Linear(state_dim, hidden_dim//2),
-            nn.Tanh(),
+            nn.relu(),
             nn.Linear(hidden_dim//2, hidden_dim//2),
-            nn.Tanh()
+            nn.relu()
         )
         
         # 合并特征后输出状态价值
@@ -103,7 +103,7 @@ class SimpleFCValue(BaseValue):
         
         # 合并特征
         merge_feat = torch.cat([lidar_out, state_out], dim=1)
-        merge_feat = torch.tanh(self.fc_merge(merge_feat))
+        merge_feat = torch.relu(self.fc_merge(merge_feat))
         
         # 输出状态价值
         value = self.value_layer(merge_feat)

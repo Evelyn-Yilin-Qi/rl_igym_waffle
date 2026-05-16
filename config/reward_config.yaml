@@ -13,9 +13,9 @@ rewards:
       weight: 1.0
       params:
         dcol: 0.2
-        dcrit: 0.5
-        rc: -0.5      # 对齐 sft_rl_tb3.py
-        rcrit: -10.0  # 对齐 sft_rl_tb3.py
+        dcrit: 0.8
+        rc: -0      # 对齐 sft_rl_tb3.py
+        rcrit: -50.0  # 对齐 sft_rl_tb3.py
         rcol: -100.0  # 碰撞惩罚（论文表格：所有模型都是-100）
     
     - name: "heading"
@@ -23,8 +23,8 @@ rewards:
       weight: 1.0
       params:
         phi_thresh: 0
-        rh: -2.8
-        rl: -1
+        rh: -5 # -2.8
+        rl: -3 # -1
     
     - name: "smoothness"
       enabled: true
@@ -46,7 +46,7 @@ rewards:
     # SFT版本可选奖励：默认关闭，仅做保留对照
     - name: "distance_reward"
       enabled: true
-      weight: 1.0
+      weight: 2.0
       params:
         scale: -1.0
 
@@ -54,6 +54,6 @@ rewards:
       enabled: true
       weight: 1.0
       params:
-        reached_bonus: 10.0
-        timeout_base: -8.0
-        timeout_dist_scale: -1.0
+        reached_bonus: 1000.0
+        timeout_base: -0.0
+        timeout_dist_scale: -0.0

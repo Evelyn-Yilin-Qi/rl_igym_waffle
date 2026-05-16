@@ -80,24 +80,13 @@ class PPO(BaseRLAlgorithm):
         """计算GAE（广义优势估计）"""
         advantages = []
         advantage = 0.0
+        rewards /= 100.0
         for t in reversed(range(len(rewards))):
             td_error = rewards[t] + self.gamma * next_values[t] * (1 - dones[t]) - values[t]
             advantage = td_error + self.gamma * self.lamda * (1 - dones[t]) * advantage
             advantages.insert(0, advantage)
         returns = np.array(advantages) + np.array(values)
-        # 优势归一化（添加数值稳定性检查）
-        adv_mean = np.mean(advantages)
-        adv_std = np.std(advantages)
-        if adv_std < 1e-8 or np.isnan(adv_std) or np.isinf(adv_std):
-            # 如果标准差太小或无效，不进行归一化
-            advantages = advantages - adv_mean
-        else:
-            advantages = (advantages - adv_mean) / adv_std
-        
-        # 检查是否有 NaN 或 Inf
-        advantages = np.nan_to_num(advantages, nan=0.0, posinf=0.0, neginf=0.0)
-        returns = np.nan_to_num(returns, nan=0.0, posinf=1000.0, neginf=-1000.0)
-        
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8) 
         return advantages, returns
 
     def update(self):

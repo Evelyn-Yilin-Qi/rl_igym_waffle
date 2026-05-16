@@ -1,80 +1,224 @@
+# rl_igym_waffle
 
-把SFT加到了stage1和stage2的训练过程里面，且保留了更改的过程，请主要使用 sft_rl_tb3_V3_modular；stage2_rl_sft；stage1_rl_sft 这三个代码！
-关注我写的❗❗❗的地方都比较重要，其他地方能不改就不改了吧
+Reinforcement learning training for **TurtleBot3 (Waffle Pi)** in **Isaac Sim**: **SFT (supervised fine-tuning) + PPO** across multiple navigation scenes, with support for comparing several LiDAR policy backbones.
+
+---
+
+## Requirements
+
+- **Isaac Sim** (default Python launcher: `/isaac-sim/python.sh`)
+- **OmniIsaacGymEnvs** (`OmniIsaacGymEnvs/` submodule; install per upstream instructions)
+- Python dependencies in [`requirements.txt`](requirements.txt) (install into Isaac Sim’s bundled Python environment)
+
+---
+
+## Quick start
+
+From the **repository root**:
+
+```bash
+chmod +x run_rl_tb3_scene_models_isaac_sequential.sh
+./run_rl_tb3_scene_models_isaac_sequential.sh
 ```
-rl_igym_waffle/
-├── core_network/        ❗❗❗如果后续要用别的架构就要改这里   # 核心网络架构模块
-│   ├── __init__.py      # 工厂函数：create_policy(), create_value()
-│   ├── base.py          # 基础接口：BasePolicy, BaseValue
-│   ├── simple_fc.py     # 简单全连接架构（LiDAR分支 + 状态分支）
-│   └── essay_base.py    # 论文架构（1D Conv + LSTM）
-│    （或许我们还有很多别的架构）
-│
-├── algorithms/          # RL算法模块
-│   ├── __init__.py      # 工厂函数：create_algorithm()
-│   ├── base.py          # 算法基础接口：BaseRLAlgorithm
-│   └── ppo.py           # PPO算法实现
-│
-├── rewards/             ❗❗❗如果要改奖励函数的参数请动这里 # 奖励函数模块
-│   ├── __init__.py      # 导出所有奖励组件
-│   ├── base.py          # 奖励组件基类：BaseRewardComponent
-│   ├── composer.py      # 奖励组合器：RewardComposer（统一管理）  ❗组装所有enable为 Ture的奖励函数
-│   ├── obstacle.py      # 障碍物惩罚
-│   ├── heading.py       # 航向惩罚
-│   ├── smoothness.py    # 动作平滑惩罚
-│   ├── static.py        # 静态惩罚（静止不动）
-│   └── centrifugal.py   # 离心力惩罚（可选）❗暂时没用上
-│
-├── envs/                # 环境观察模块
-│   ├── __init__.py
-│   ├── observations.py  # 观察向量组装：LiDAR、碰撞检测、44维观察
-│   └── user_intent.py   # 用户意图计算（目标方向）
-│
-├── sim/                 # 仿真环境模块
-│   ├── robot/           # 机器人相关
-│   │   ├── tb3_config.py    # TB3配置（速度限制、尺寸等）
-│   │   └── ...
-│   └── scenes/          # 场景管理
-│       ├── scene_manager.py  # 场景管理器（创建、重置障碍物）
-│       ├── scene_base.py     # 场景基类和常量
-│       └── ...
-│
-├── process_settings/    # 训练流程设置模块
-│   ├── __init__.py
-│   └── env_setup.py     # 环境初始化类：EnvironmentSetup
-│
-├── sft/                 ❗❗❗SFT相关逻辑都在这里
-│   ├── rule_controller.py  # 规则控制器：监督label怎么生成
-│   ├── supervised.py       # 监督训练：MSE训练策略网络   要是觉得需要改就动这里
-│   ├── logging.py          # SFT/RL打印工具 正式的Stage里面就不print了
-│   └── config.py           # SFT相关配置读取工具（轻量）
-│
-├── config/              ❗❗❗ 改要使用的re function； network；RL 策略等# 配置模块（YAML格式）  
-│   ├── network_config.yaml    # 网络架构配置（支持enabled切换）
-│   ├── algorithm_config.yaml  # RL算法配置（支持enabled切换）
-│   └── reward_config.yaml     # 奖励函数配置（支持enabled/weight）
-│
-├── utils/               # 工具函数模块
-│   └── config_utils.py  # 配置读取工具：get_enabled_component()
-│
-├── scripts/              # 训练脚本   （有关SFT以及RL的一些参数代码的命名我都改了，注释里面写了原名和现名，改是为了统一加上好理解
-│   ├── stage1_rl_sft.py       # ❗❗❗❗❗Stage1 SFT + RL 之后修改stage1主要用这个  只有空场景 目前env中写死了16个
-│   │                             只能说跑通了,效果完全没验证过                         env改的时候建议【4，16，32，64这种的】
-│   ├── stage2_rl_sft.py       # ❗❗❗❗❗Stage2 SFT + RL 之后修改stage2主要用这个  四个场景 目前env中写死了16个
-│   │                             只能说跑通了,效果完全没验证过                         env改的时候建议【4，16，32，64这种的】
-│   ├── sft_rl_tb3_V3_modular.py ❗❗❗❗❗ 如果要做任何运行测试，可以在这里做，但只运行一个env，四个场景都可选择可以在代码中切换，main注释写清楚了
-│   │                           
-│   ├── sft_rl_tb3_V3.py       # 冯的版本对齐到V3  这个可以运行，但是只是box单一场景 (test)
-│   ├── sft_rl_tb3.py          # 冯原始的脚本  (test)
-│   └── PPO_ckpt_test.py       # ❗❗❗checkpoint打包/测试脚本  反正现在没有可用的模型我就没动，这个代码没有做适配
-│
-│   # 旧脚本（别用了）
-│   ├── recent_old_version/stage1_sft_rl.py
-│   ├── recent_old_version/stage2_sft_rl.py
-│   └── test/stage1_rl.py, test/stage2_rl.py, test/*.py
-│
-└── cfg/                 # 别再用了，只是为了几个老脚本留着了,新脚本都没引用 
-    ├── WaffleDrive.yaml  # 
+
+The script **runs jobs sequentially**, each in its own Isaac process, training different `--model` backbones. By default only the **mixed** scene runs (5 experiments); `box` / `door` / `col` commands are commented out in the script—uncomment them as needed.
+
+If any step fails, `set -e` stops the remaining jobs.
+
+### Custom Isaac Python path
+
+If Isaac is not installed under `/isaac-sim`, set an environment variable before running:
+
+```bash
+export ISAAC_PYTHON_LAUNCHER=/path/to/your/python.sh
+# or
+export ISAAC_PYTHON=/path/to/your/python.sh
+
+./run_rl_tb3_scene_models_isaac_sequential.sh
+```
+
+You can also edit `DEFAULT_ISAAC_PY` inside the shell script.
+
+### Single-scene / single-model training
+
+Without the batch script, invoke training directly with Isaac’s Python, for example:
+
+```bash
+/isaac-sim/python.sh scripts/rl_tb3_mixed.py --model cnn_lstm_sft
+/isaac-sim/python.sh scripts/rl_tb3_box.py   --model simple_fc_sft
+/isaac-sim/python.sh scripts/rl_tb3_door.py  --model cnn_gru_sft
+/isaac-sim/python.sh scripts/rl_tb3_col.py   --model fc_lstm_sft
 ```
 
 ---
+
+## Directory layout
+
+```
+rl_igym_waffle/
+├── run_rl_tb3_scene_models_isaac_sequential.sh   # Batch sequential training (recommended)
+├── run_rl_tb3_sequential.sh                      # Other sequential-training variant
+├── requirements.txt
+├── convert_urdf.py                               # URDF conversion utility
+│
+├── config/                    # YAML (network / algorithm / reward)
+│   ├── network_config.yaml
+│   ├── algorithm_config.yaml
+│   └── reward_config.yaml
+│
+├── core_network/              # Policy and value architectures
+│   ├── __init__.py            # create_policy(), create_value()
+│   ├── base.py
+│   ├── simple_fc.py
+│   ├── simple_fc_sft.py
+│   ├── essay_base.py
+│   └── lidar_seq_models.py    # CNN+LSTM/GRU, FC+LSTM SFT backbones
+│
+├── algorithms/                # RL algorithms (PPO, etc.)
+│   ├── base.py
+│   └── ppo.py
+│
+├── rewards/                   # Composable reward terms
+│   ├── composer.py            # RewardComposer: assembles enabled terms from config
+│   ├── obstacle.py, heading.py, goal.py, distance.py, ...
+│   └── base.py
+│
+├── envs/                      # Observations and user intent
+│   ├── observations.py        # LiDAR, 44-dim observation assembly
+│   └── user_intent.py
+│
+├── sim/                       # Isaac simulation and scenes
+│   ├── robot/                 # TB3 config and spawn (tb3_config.py, tb3_setup.py)
+│   └── scenes/                # Scene management (empty / cylinder / door / box)
+│
+├── process_settings/
+│   └── env_setup.py           # EnvironmentSetup: env initialization
+│
+├── sft/                       # Supervised fine-tuning
+│   ├── rule_controller.py     # Rule controller for supervised labels
+│   ├── supervised.py          # Supervised training (MSE)
+│   ├── config.py
+│   └── logging.py
+│
+├── local_planners/            # Local planning (APF / VO / ORCA, etc.)
+│
+├── utils/
+│   └── config_utils.py        # Read enabled components from YAML
+│
+├── scripts/                   # Training and test scripts
+│   ├── rl_tb3_box.py          # box scene, SFT+PPO
+│   ├── rl_tb3_door.py         # door scene
+│   ├── rl_tb3_col.py          # cylinder scene
+│   ├── rl_tb3_mixed.py        # four scenes, round-robin across envs
+│   ├── stage1_rl_sft.py       # Stage1: empty scene, SFT+RL
+│   ├── stage2_rl_sft.py       # Stage2: four scenes, SFT+RL
+│   ├── sft_rl_tb3_V3_modular.py   # single-env debug / scene switching
+│   ├── train_actor.py, sft_data_collection.py, tb3_control.py, ...
+│   ├── test/                  # test scripts
+│   └── recent_old_version/    # legacy scripts (do not use)
+│
+├── assets/                    # TurtleBot3 Waffle Pi URDF and meshes
+│   └── turtlebot3_waffle_pi/
+│
+├── data/                      # Training data by scene
+│   ├── empty/, cylinder/, door/, box/
+│
+├── checkpoints/               # Model checkpoints (named by scene and model)
+├── runs/                      # TensorBoard logs
+├── logs/                      # Plain-text training logs
+│
+├── cfg/                       # Legacy Hydra config (not used by new scripts)
+│
+└── OmniIsaacGymEnvs/          # OIGE submodule
+```
+
+---
+
+## Usage
+
+### 1. Recommended training flow
+
+| Stage | Script | Description |
+|-------|--------|-------------|
+| Batch comparison | `run_rl_tb3_scene_models_isaac_sequential.sh` | Sequential runs over `--model`; one Isaac process per job |
+| Stage1 | `scripts/stage1_rl_sft.py` | **Empty scene** only, SFT + RL (default 16 envs; use 4/16/32/64 as needed) |
+| Stage2 | `scripts/stage2_rl_sft.py` | **Four scenes**, SFT + RL |
+| Single-env debug | `scripts/sft_rl_tb3_V3_modular.py` | One env; switch scene in code (see `main` comments) |
+
+> **Note:** Stage1/Stage2 have been smoke-tested only; performance has not been systematically evaluated. For Stage changes, prefer editing the scripts above.
+
+### 2. Scenes and scripts
+
+| Scene | Constant / notes | Training script |
+|-------|------------------|-----------------|
+| Empty | `SCENE_EMPTY` | `stage1_rl_sft.py` |
+| Cylinders | `SCENE_CYLINDER` | `rl_tb3_col.py` |
+| Door | `SCENE_DOOR` | `rl_tb3_door.py` |
+| Boxes | `SCENE_BOX` | `rl_tb3_box.py` |
+| All four (cycled) | empty / cylinder / door / box | `rl_tb3_mixed.py`, `stage2_rl_sft.py` |
+
+### 3. Policy backbones (`--model`)
+
+Batch and per-scene scripts accept these names (must match the `core_network` factory):
+
+| `--model` | Description |
+|-----------|-------------|
+| `simple_fc_sft` | Fully connected + ReLU, 44-dim observations |
+| `cnn_lstm_sft` | 1D CNN + LSTM |
+| `cnn_gru_sft` | 1D CNN + GRU |
+| `fc_lstm_sft` | FC + LSTM |
+| `cnn_lstm_sft_nodoor` | CNN+LSTM variant (no door-specific design) |
+
+See [`MODULAR_ARCHITECTURE.md`](MODULAR_ARCHITECTURE.md) for more detail on the modular design.
+
+### 4. Configuration
+
+Prefer YAML before changing code:
+
+| Goal | File |
+|------|------|
+| Default network architecture | `config/network_config.yaml` |
+| PPO and other algorithm params | `config/algorithm_config.yaml` |
+| Reward toggles and weights | `config/reward_config.yaml` |
+
+- **New network:** extend `core_network/` and register in `create_policy` / `create_value`.
+- **New or updated rewards:** edit `rewards/` components and set `enabled` / `weight` in `reward_config.yaml`.
+
+### 5. Outputs
+
+Artifacts are typically written to:
+
+- **Checkpoints:** `checkpoints/ppo_sft_rl_tb3_v3/{scene}_{model}/` (e.g. `mixed_cnn_lstm_sft`)
+- **TensorBoard:** `runs/ppo_sft_rl_tb3_v3/`
+- **Text logs:** `logs/`
+
+View training curves with:
+
+```bash
+tensorboard --logdir runs/ppo_sft_rl_tb3_v3
+```
+
+---
+
+## Other entry points
+
+| File | Purpose |
+|------|---------|
+| `scripts/rl_tb3_*_models_train.py` | Subprocess runner: all models for one scene |
+| `scripts/rl_tb3_matrix_train.py` | Matrix worker training (`--worker --scene --model`) |
+| `scripts/rl_tb3_sequential_scene_models_train.py` | Python equivalent of 20 sequential runs (similar to the shell script) |
+
+---
+
+## Development tips
+
+- Quick single-scene checks: use `sft_rl_tb3_V3_modular.py` (one env; switch scene in code).
+- Do not build on `scripts/test/` or `scripts/recent_old_version/`.
+- `cfg/WaffleDrive.yaml` is for legacy scripts only; new flows use `config/*.yaml`.
+- Set parallel env count in each `scripts/*.py` `main()`; use a **multiple of 4** for mixed training (envs are assigned round-robin across four scene types).
+
+---
+
+## License
+
+Follow the license terms of Isaac Sim, OmniIsaacGymEnvs, and any other bundled submodules.

@@ -4,10 +4,15 @@ TB3 机器人加载和配置函数
 """
 import omni.usd
 from pxr import UsdPhysics, Gf
-from .tb3_config import BASE_MASS, COM_X, COM_Z
+from .tb3_config import BASE_MASS, COM_X, COM_Z, BASE_LINK_DIAGONAL_INERTIA
 
 
-def apply_massapi_all_tb3(base_mass=BASE_MASS, com_x=COM_X, com_z=COM_Z):
+def apply_massapi_all_tb3(
+    base_mass=BASE_MASS,
+    com_x=COM_X,
+    com_z=COM_Z,
+    diagonal_inertia=None,
+):
     """
     为所有 TB3 机器人应用 MassAPI（质量和质心配置）
     
@@ -15,6 +20,7 @@ def apply_massapi_all_tb3(base_mass=BASE_MASS, com_x=COM_X, com_z=COM_Z):
         base_mass: 底盘质量 (kg)
         com_x: 质心 X 偏移 (m)
         com_z: 质心 Z 偏移 (m)
+        diagonal_inertia: 可选 (ixx, iyy, izz) kg·m²；默认使用 tb3_config.BASE_LINK_DIAGONAL_INERTIA（URDF 量级）
     """
     stage = omni.usd.get_context().get_stage()
     base_cnt = 0
@@ -30,7 +36,13 @@ def apply_massapi_all_tb3(base_mass=BASE_MASS, com_x=COM_X, com_z=COM_Z):
             api = UsdPhysics.MassAPI.Apply(prim)
             api.CreateMassAttr(float(base_mass))
             api.CreateCenterOfMassAttr(Gf.Vec3f(float(com_x), 0.0, float(com_z)))
-            api.CreateDiagonalInertiaAttr(Gf.Vec3f(0.02, 0.02, 0.02))
+            if diagonal_inertia is None:
+                ix, iy, iz = BASE_LINK_DIAGONAL_INERTIA
+            else:
+                ix, iy, iz = diagonal_inertia
+            api.CreateDiagonalInertiaAttr(
+                Gf.Vec3f(float(ix), float(iy), float(iz))
+            )
             base_cnt += 1
 
         elif name == "a__namespace_imu_link":
@@ -42,6 +54,7 @@ def apply_massapi_all_tb3(base_mass=BASE_MASS, com_x=COM_X, com_z=COM_Z):
 
     if base_cnt > 0:
         print(f"[INFO] MassAPI applied: base_link={base_cnt}, imu_link={imu_cnt}")
+    return base_cnt, imu_cnt
 
 
 def configure_wheel_joints(robots, wheel_kp=None, wheel_kd=None, wheel_max_effort=None):

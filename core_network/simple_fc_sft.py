@@ -51,6 +51,10 @@ class SimpleFCSFTPolicy(BasePolicy):
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         return mean, log_std
 
+    def predict_mean(self, x):
+        mean, _ = self.forward(x)
+        return mean
+
 
 class SimpleFCSFTValue(BaseValue):
     """SFT价值网络（ReLU分支结构）"""
@@ -71,7 +75,10 @@ class SimpleFCSFTValue(BaseValue):
             nn.Linear(hidden_dim // 2, hidden_dim // 2),
             nn.ReLU(),
         )
-        self.fc_merge = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_merge = nn.Sequential(
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
         self.value_layer = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
