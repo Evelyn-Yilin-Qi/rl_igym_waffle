@@ -1,0 +1,59 @@
+rewards:
+  components:
+    - name: "static"
+      enabled: true
+      weight: 1.0
+      params:
+        v_thresh: 0.1
+        w_thresh: 0.2
+        penalty_value: -1.0
+    
+    - name: "obstacle"
+      enabled: true
+      weight: 1.0
+      params:
+        dcol: 0.2
+        dcrit: 0.8
+        rc: -0      # 对齐 sft_rl_tb3.py
+        rcrit: -50.0  # 对齐 sft_rl_tb3.py
+        rcol: -100.0  # 碰撞惩罚（论文表格：所有模型都是-100）
+    
+    - name: "heading"
+      enabled: true
+      weight: 1.0
+      params:
+        phi_thresh: 0
+        rh: -5 # -2.8
+        rl: -3 # -1
+    
+    - name: "smoothness"
+      enabled: true
+      weight: 1.0
+      params:
+        ras1: -0.02
+        ras2: -0.02
+    
+    # 离心力惩罚（预留接口，默认不启用）
+    - name: "centrifugal"
+      enabled: false  # 暂时不启用
+      weight: 1.0
+      params:
+        mass: 1.373  # TB3机器人质量（kg）
+        penalty_type: "linear"  # 'linear', 'threshold', 'quadratic'
+        scale: 1.0  # 惩罚系数
+        threshold: 0.5  # 离心加速度阈值（m/s²），用于threshold和quadratic模式
+
+    # SFT版本可选奖励：默认关闭，仅做保留对照
+    - name: "distance_reward"
+      enabled: true
+      weight: 2.0
+      params:
+        scale: -1.0
+
+    - name: "goal_reward"
+      enabled: true
+      weight: 1.0
+      params:
+        reached_bonus: 1000.0
+        timeout_base: -0.0
+        timeout_dist_scale: -0.0

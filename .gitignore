@@ -35,3 +35,6 @@ Thumbs.db
 
 # 6. 彻底忽略官方框架，组员需自行 clone
 OmniIsaacGymEnvs/
+
+# 7. SFT 数据源（本地采集数据，不纳入版本控制）
+data/

@@ -1,0 +1,71 @@
+# =============================================================================
+# DEPRECATED (legacy compatibility only)
+# -----------------------------------------------------------------------------
+# This cfg/ folder is kept only for old scripts/tests compatibility.
+# New development MUST NOT add or read settings from cfg/*.
+# Please use runtime in-script parameters or config/* instead.
+# =============================================================================
+#
+# ==================================
+# 环境超参数
+# ==================================
+# WaffleDrive 张量化环境物理配置 (严格对齐论文)
+name: WaffleDrive
+physics_engine: physx
+env:
+  numEnvs: 1
+  envSpacing: 4.0 
+  resetDist: 0.2 
+  clipObservations: 5.0 
+  clipActions: 1.0
+  controlFrequencyInv: 1 # 控制间隔，配合 dt=0.025，实现精确 40Hz 控制
+
+  # Waffle Pi 真实物理极限 (用于动作重映射)
+  robot_limits:
+    max_v: 0.5 # 线速度上限 m/s (用于归一化)
+    max_w: 1.0 # 角速度上限 rad/s (用于归一化)
+
+  target:
+    pos: [3.0, 0.0, 0.0] 
+
+  lidar:
+    num_rays: 36
+    max_range: 3.0 
+    noise_std: 0.02
+
+  randomization:
+    stage_level: 1 # 1: 无障碍纯净模式, 2: 动态障碍模式
+    door_width_range: [0.9, 1.7]
+    box_scale_range: [0.5, 1.2]
+
+  # 场景配置
+  scene:
+    env_size: 6.0  # 环境大小 (m)
+    wall_thickness: 0.08  # 墙厚度 (m)
+    wall_height: 1.2  # 墙高度 (m)
+    show_visual_walls: false  # 是否显示边界墙（Stage 1 通常 false）
+    
+    # 场景参数
+    box:
+      size_range: [1.0, 3.0]  # 长宽范围 (m)
+      height: 0.6  # 高度 (m)
+    cylinder:
+      radius_range: [0.1, 0.3]  # 半径范围 (m)
+      height: 0.7  # 高度 (m)
+      fixed_positions: [[1.0, 1.0], [-1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]]  # 固定位置
+    door:
+      width_range: [0.9, 1.75]  # 门宽度范围 (m)
+      wall_thickness: 0.12  # 墙厚度 (m)
+      wall_height: 1.0  # 墙高度 (m)
+
+
+sim:
+  dt: 0.025 # 物理步长 40Hz
+  use_gpu_pipeline: True
+  device_id: 0  # GPU 设备 ID
+  graphics_device_id: 0  # 图形设备 ID
+  gravity: [0.0, 0.0, -9.81]
+  physx:
+    num_threads: 4
+    solver_type: 1
+    use_gpu: True
